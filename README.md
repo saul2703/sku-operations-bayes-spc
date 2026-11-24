@@ -13,6 +13,7 @@
 </picture>
 
 - **Interactive AG Grid HTML5 Workbench:** [`index.html`](index.html)
+- **Kaggle Data Source:** [DataCo Smart Supply Chain for Big Data Analysis (`DataCoSupplyChainDataset.csv`)](https://www.kaggle.com/datasets/shashwatwork/dataco-smart-supply-chain-for-big-data-analysis)
 - **Relational Star Schema & Analytical Views:** [`sql/sku_ops_star_schema.sql`](sql/sku_ops_star_schema.sql)
 - **Empirical Bayes & SPC Python Pipeline:** [`src/sku_ops_analysis.py`](src/sku_ops_analysis.py)
 - **Aggregated SKU, Lane & Monthly SPC JSON:** [`data/sku_ops_summary.json`](data/sku_ops_summary.json)
