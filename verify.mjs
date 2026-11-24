@@ -67,6 +67,7 @@ assert.ok(!html.includes('class="eyebrow"'), "Impeccable craft-floor ban: no eye
 assert.ok(html.includes('<meta name="color-scheme" content="light dark"'), "index.html must declare light dark color-scheme");
 assert.ok(html.includes("light-dark("), "index.html must use CSS light-dark() tokens");
 assert.ok(html.includes("btnThemeToggle") && html.includes("<picture data-chart="), "index.html must include theme toggle and dual-mode <picture> charts");
+assert.ok(html.includes("liveChartShrinkage") && html.includes("liveChartExposure"), "index.html must include interactive filter-reactive SVG charts");
 assert.ok(html.includes("content-visibility: auto"), "modern-web-guidance: must include content-visibility: auto containment");
 assert.ok(html.includes("container-type: inline-size"), "modern-web-guidance: must include container-type: inline-size for responsive tables");
 assert.ok(html.includes("skuGrid") && html.includes("spcGrid") && html.includes("laneGrid"), "index.html must include all three AG Grid containers");
