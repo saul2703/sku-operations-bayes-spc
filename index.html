@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Global Store &amp; SKU Operations — Empirical Bayes &amp; Statistical Process Control Workbench</title>
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz.css" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --canvas: light-dark(#f8fafc, #0b1120);
+      --surface: light-dark(#ffffff, #111827);
+      --surface-raised: light-dark(#f1f5f9, #172135);
+      --border: light-dark(#cbd5e1, #29374d);
+      --text-primary: light-dark(#0f172a, #f4f7fb);
+      --text-secondary: light-dark(#475569, #9db1cc);
+      --text-muted: light-dark(#64748b, #7d93b2);
+      --c1-blue: light-dark(#0284c7, #38bdf8);
+      --c2-green: light-dark(#047857, #34d399);
+      --c3-amber: light-dark(#b45309, #fbbf24);
+      --c4-pink: light-dark(#be185d, #f472b6);
+      --code-ink: light-dark(#1e293b, #cfe1f7);
+      --shadow-soft: light-dark(0 8px 24px -10px rgba(15, 23, 42, 0.12), 0 10px 28px -10px rgba(2, 8, 23, 0.72));
+      scrollbar-color: var(--border) var(--canvas);
+      scrollbar-width: thin;
+    }
+    :root[data-theme="light"] { color-scheme: light; }
+    :root[data-theme="dark"] { color-scheme: dark; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    ::selection {
+      background: light-dark(rgba(2, 132, 199, 0.2), rgba(56, 189, 248, 0.28));
+      color: var(--text-primary);
+    }
+    body {
+      background: var(--canvas);
+      color: var(--text-primary);
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 0.9375rem;
+      line-height: 1.55;
+      font-variant-numeric: tabular-nums;
+      caret-color: var(--c1-blue);
+      padding: 20px 24px 40px;
+    }
+    a {
+      color: var(--c1-blue);
+      text-underline-offset: 0.22em;
+    }
+    :focus-visible {
+      outline: 2px solid var(--c1-blue);
+      outline-offset: 2px;
+    }
+    .workbench {
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+    .masthead {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 24px;
+      box-shadow: var(--shadow-soft);
+      margin-block-end: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .masthead h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-block-end: 6px;
+      text-wrap: balance;
+    }
+    .masthead p {
+      color: var(--text-secondary);
+      max-width: 72ch;
+      font-size: 0.9375rem;
+    }
+    .meta-tag {
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      background: var(--surface-raised);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    /* Continuous 1px Operational Ledger Strip */
+    .ledger-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(180px, 1fr));
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-block-end: 16px;
+      box-shadow: var(--shadow-soft);
+    }
+    .ledger-cell {
+      padding: 14px 18px;
+      border-inline-end: 1px solid var(--border);
+    }
+    .ledger-cell:last-child { border-inline-end: none; }
+    .ledger-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-block-end: 4px;
+    }
+    .ledger-figure {
+      font-size: 1.375rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+    .ledger-note {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-block-start: 2px;
+    }
+    @media (max-width: 960px) {
+      .ledger-strip { grid-template-columns: repeat(2, 1fr); }
+      .ledger-cell { border-block-end: 1px solid var(--border); }
+    }
+
+    /* Toolbar & View Tabs */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-block-end: 18px;
+    }
+    .tab-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tab-btn {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 7px 13px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 160ms ease-out, color 160ms ease-out, border-color 160ms ease-out;
+    }
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background: var(--surface-raised);
+    }
+    .tab-btn[aria-selected="true"] {
+      color: var(--c1-blue);
+      background: rgba(56, 189, 248, 0.14);
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    .filter-bar label {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+    select, input[type="search"], .action-btn {
+      background: var(--surface-raised);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.8125rem;
+      font-family: inherit;
+      transition: border-color 160ms ease-out, background-color 160ms ease-out;
+    }
+    select:hover, input[type="search"]:hover {
+      border-color: #3f5576;
+    }
+    .action-btn {
+      cursor: pointer;
+      color: var(--c1-blue);
+      border-color: rgba(56, 189, 248, 0.4);
+      background: rgba(56, 189, 248, 0.1);
+      font-weight: 600;
+    }
+    .action-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+    }
+
+    /* Layout Containment */
+    .layout-region {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 300px auto 520px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-block-end: 20px;
+      box-shadow: var(--shadow-soft);
+    }
+    @supports not (content-visibility: auto) {
+      .layout-region {
+        contain: layout style paint;
+      }
+    }
+    .layout-region h2 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      margin-block-end: 6px;
+      color: var(--text-primary);
+    }
+    .layout-region p.region-lead {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      max-width: 72ch;
+      margin-block-end: 16px;
+    }
+
+    /* Responsive Table with Sticky Headers & Container Queries */
+    .table-wrapper {
+      overflow: auto;
+      max-inline-size: 100%;
+      max-block-size: min(500px, 80vh);
+      container-type: inline-size;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--canvas);
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.8125rem;
+      font-variant-numeric: tabular-nums;
+      --label-2: "Orders";
+      --label-3: "Share";
+      --label-4: "Late Rate";
+      --label-5: "Scheduled";
+      --label-6: "Real";
+      --label-7: "Variance";
+      --label-8: "Sales";
+    }
+    table.data-table.hygiene-table {
+      --label-2: "Observed Anomaly";
+      --label-3: "Cleaning & Guardrail Rule";
+    }
+    table.data-table.matrix-table {
+      --label-2: "Orders";
+      --label-3: "Raw %";
+      --label-4: "EB Post %";
+      --label-5: "Shrinkage";
+      --label-6: "Late Sales";
+    }
+    table.data-table caption {
+      text-align: left;
+      padding: 10px 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      background: var(--surface-raised);
+      border-block-end: 1px solid var(--border);
+    }
+    table.data-table thead {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 1;
+      background: var(--surface-raised);
+    }
+    table.data-table th, table.data-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-block-end: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    table.data-table.hygiene-table td, table.data-table.hygiene-table th {
+      white-space: normal;
+    }
+    table.data-table th.num, table.data-table td.num {
+      text-align: right;
+    }
+    table.data-table tbody th {
+      position: sticky;
+      inset-inline-start: 0;
+      background: var(--surface);
+      color: var(--text-primary);
+      font-weight: 600;
+      border-inline-end: 1px solid var(--border);
+    }
+    table.data-table tbody tr:hover td {
+      background: rgba(56, 189, 248, 0.05);
+    }
+    @container (width < 600px) {
+      table.data-table, table.data-table thead, table.data-table tbody, table.data-table tr, table.data-table th, table.data-table td {
+        display: block;
+      }
+      table.data-table thead {
+        display: none;
+      }
+      table.data-table tr {
+        margin-block-end: 1rem;
+        border: 1px solid var(--border);
+      }
+      table.data-table tbody th {
+        position: sticky;
+        inset-block-start: 0;
+        z-index: 2;
+        background: var(--surface-raised);
+      }
+      table.data-table td.num { text-align: left; }
+      table.data-table td:nth-child(2)::before { content: var(--label-2) ": "; color: var(--text-secondary); font-weight: 600; }
+      table.data-table td:nth-child(3)::before { content: var(--label-3) ": "; color: var(--text-secondary); font-weight: 600; }
+      table.data-table td:nth-child(4)::before { content: var(--label-4) ": "; color: var(--text-secondary); font-weight: 600; }
+      table.data-table td:nth-child(5)::before { content: var(--label-5) ": "; color: var(--text-secondary); font-weight: 600; }
+      table.data-table td:nth-child(6)::before { content: var(--label-6) ": "; color: var(--text-secondary); font-weight: 600; }
+      table.data-table td:nth-child(7)::before { content: var(--label-7) ": "; color: var(--text-secondary); font-weight: 600; }
+      table.data-table td:nth-child(8)::before { content: var(--label-8) ": "; color: var(--text-secondary); font-weight: 600; }
+    }
+
+    /* Chart Panels */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(560px, 1fr));
+      gap: 18px;
+    }
+    @media (max-width: 640px) {
+      .chart-grid { grid-template-columns: 1fr; }
+    }
+    .chart-panel {
+      background: var(--canvas);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .chart-panel h3 {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      margin-block-end: 4px;
+      color: var(--text-primary);
+    }
+    .chart-panel p {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      max-width: 68ch;
+      margin-block-end: 12px;
+    }
+    .chart-panel img {
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+
+    .performers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 18px;
+    }
+    @media (max-width: 560px) {
+      .performers-grid { grid-template-columns: 1fr; }
+    }
+    .code-mono {
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+    pre.sql-block {
+      background: var(--canvas);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 0.8125rem;
+      color: var(--code-ink);
+      line-height: 1.5;
+      max-height: 480px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .b-blue { background: light-dark(rgba(2,132,199,0.12), rgba(56,189,248,0.16)); color: var(--c1-blue); border: 1px solid light-dark(rgba(2,132,199,0.34), rgba(56,189,248,0.38)); }
+    .b-green { background: light-dark(rgba(4,120,87,0.12), rgba(52,211,153,0.16)); color: var(--c2-green); border: 1px solid light-dark(rgba(4,120,87,0.34), rgba(52,211,153,0.38)); }
+    .b-amber { background: light-dark(rgba(180,83,9,0.12), rgba(251,191,36,0.16)); color: var(--c3-amber); border: 1px solid light-dark(rgba(180,83,9,0.34), rgba(251,191,36,0.38)); }
+    .b-pink { background: light-dark(rgba(190,24,93,0.12), rgba(244,114,182,0.16)); color: var(--c4-pink); border: 1px solid light-dark(rgba(190,24,93,0.34), rgba(244,114,182,0.38)); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main class="workbench">
+    <header class="masthead">
+      <div>
+        <h1>Global Store &amp; SKU Operations — Empirical Bayes &amp; SPC Workbench</h1>
+        <p>
+          Fulfillment risk ranking and process-stability monitoring across <strong>58,894 order items</strong>
+          (<strong>31,160 orders</strong>, <strong>116 SKUs</strong>, <strong>92 Region &times; Shipping Mode lanes</strong>,
+          and <strong>37 monthly periods</strong> from Jan 2015 to Jan 2018). Uses Beta-Binomial shrinkage to separate true bottlenecks
+          from small-sample noise, paired with Shewhart <em>p</em>-charts and <em>X&#772; / S</em> control charts.
+        </p>
+      </div>
+      <div class="meta-tag">DataCo Supply Chain &bull; 116 SKUs &bull; 92 Lanes &bull; 37 Months</div>
+    </header>
+
+    <section class="ledger-strip" aria-label="Operational and Statistical Process Control Ledger">
+      <div class="ledger-cell">
+        <div class="ledger-label">Filtered Order Items</div>
+        <div class="ledger-figure" id="kpi-orders">58,894</div>
+        <div class="ledger-note" id="kpi-skus">116 SKUs across 11 departments</div>
+      </div>
+      <div class="ledger-cell">
+        <div class="ledger-label">Gross Sales &amp; Late Exposure</div>
+        <div class="ledger-figure" id="kpi-sales">$11.52M</div>
+        <div class="ledger-note" id="kpi-exposure">$6.62M exposed to late delivery (57.4%)</div>
+      </div>
+      <div class="ledger-cell">
+        <div class="ledger-label">Empirical Bayes Baseline</div>
+        <div class="ledger-figure" id="kpi-eb">57.75%</div>
+        <div class="ledger-note" id="kpi-prior">Beta(&alpha;&#8320;=263.4, &beta;&#8320;=192.7), M=456</div>
+      </div>
+      <div class="ledger-cell">
+        <div class="ledger-label">Lead-Time Variance (X&#772;)</div>
+        <div class="ledger-figure" id="kpi-delay">+0.598 days</div>
+        <div class="ledger-note">Within-month spread S&#772; = 1.474 days</div>
+      </div>
+      <div class="ledger-cell">
+        <div class="ledger-label">SPC Special-Cause Flags</div>
+        <div class="ledger-figure" id="kpi-spc">7 breaches</div>
+        <div class="ledger-note">Rule 1 (&gt;3&sigma;): 1 late, 4 cancel, 2 delay</div>
+      </div>
+    </section>
+
+    <nav class="toolbar" aria-label="Workbench Views and Global Filters">
+      <div class="tab-group" role="tablist" aria-label="Analysis Views">
+        <button type="button" class="tab-btn" role="tab" aria-selected="true" data-target="view-overview">Empirical Bayes &amp; SPC Overview</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-target="view-grids">116-SKU, 92-Lane &amp; 37-Month Grids</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-target="view-performers">Shrinkage &amp; Risk Comparison</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-target="view-schema">Star Schema SQL &amp; Hygiene Rules</button>
+      </div>
+
+      <div class="filter-bar">
+        <label for="deptFilter">Department:</label>
+        <select id="deptFilter">
+          <option value="ALL">All 11 Departments</option>
+        </select>
+
+        <label for="riskFilter">Posterior Risk:</label>
+        <select id="riskFilter">
+          <option value="ALL">All 116 SKUs</option>
+          <option value="HIGH">Above Baseline (&gt;58.5%)</option>
+          <option value="MID">Near Baseline (56.5%–58.5%)</option>
+          <option value="LOW">Below Baseline (&lt;56.5%)</option>
+        </select>
+
+        <input type="search" id="quickSearch" aria-label="Search SKU, Category, or Region" placeholder="Search SKU or category..." />
+        <button type="button" class="action-btn" id="btnExportSku">Export SKUs CSV</button>
+        <button type="button" class="action-btn" id="btnThemeToggle" aria-label="Toggle Light or Dark Theme">Light Mode</button>
+      </div>
+    </nav>
+
+    <div id="empty-filter-banner" class="layout-region" style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-color: rgba(251,191,36,0.45);" hidden>
+      <div>
+        <strong style="color:var(--c3-amber);">No SKUs match your current filter combination.</strong>
+        <span style="color:var(--text-secondary); margin-inline-start:6px;">Clear the department, risk tier, or search query to restore all 116 SKUs.</span>
+      </div>
+      <button type="button" class="action-btn" id="btnResetFilters">Reset Filters</button>
+    </div>
+
+    <!-- VIEW 1: EMPIRICAL BAYES & SPC OVERVIEW -->
+    <div id="view-overview" class="view-pane">
+      <section class="layout-region">
+        <h2>Shipping Tier SLA Promise Gap (Why Mode Choice Drives 99% of Lane Variance)</h2>
+        <p class="region-lead">
+          Holding shipping mode constant inside <strong>Standard Class</strong> drops between-SKU rate variance below pure binomial sampling noise
+          (<code>0.000741</code> observed vs. <code>0.000832</code> expected noise). That proves individual products rarely cause late deliveries—over-promising
+          1-day (<strong>First Class: 98.88% late</strong>) and 2-day (<strong>Second Class: 78.49% late</strong>) transit windows does.
+        </p>
+        <div tabindex="0" role="region" aria-labelledby="mode-ledger-caption" class="table-wrapper">
+          <table class="data-table">
+            <caption id="mode-ledger-caption">Fulfillment Performance &amp; Lead-Time Variance by Shipping Tier (58,894 Order Items)</caption>
+            <thead>
+              <tr>
+                <th scope="col">Shipping Mode</th>
+                <th scope="col" class="num">Order Items</th>
+                <th scope="col" class="num">Order Share</th>
+                <th scope="col" class="num">Late Rate</th>
+                <th scope="col" class="num">Scheduled Days</th>
+                <th scope="col" class="num">Actual Days</th>
+                <th scope="col" class="num">Mean Variance</th>
+                <th scope="col" class="num">Total Sales</th>
+              </tr>
+            </thead>
+            <tbody id="mode-ledger-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="layout-region">
+        <h2>Visual Analytics Suite (Empirical Bayes Shrinkage &amp; Statistical Process Control)</h2>
+        <p class="region-lead">
+          Six diagnostic charts generated directly from <code>DataCoSupplyChainDataset.csv</code>, separating small-sample noise from repeatable operational bottlenecks.
+        </p>
+        <div class="chart-grid">
+          <article class="chart-panel">
+            <h3>Empirical Bayes Beta-Binomial Shrinkage Across 116 SKUs</h3>
+            <p>Low-volume SKUs (3–27 orders) pull back toward the 57.75% global prior, while high-volume bulky SKUs keep their elevated posterior risk.</p>
+            <picture data-chart="empirical_bayes_shrinkage">
+              <source srcset="images/empirical_bayes_shrinkage_light.png" media="(prefers-color-scheme: light)" />
+              <img src="images/empirical_bayes_shrinkage.png" alt="Empirical Bayes Binomial Funnel and Shrinkage Corrections" loading="lazy" />
+            </picture>
+          </article>
+          <article class="chart-panel">
+            <h3>Shewhart p-Charts: Monthly Late Delivery &amp; Cancellation Rates</h3>
+            <p>Tracks 37 months against &plusmn;3&sigma; variable control limits, flagging June 2017's late-rate dip and four special-cause cancellation shifts.</p>
+            <picture data-chart="spc_p_chart_late_delivery">
+              <source srcset="images/spc_p_chart_late_delivery_light.png" media="(prefers-color-scheme: light)" />
+              <img src="images/spc_p_chart_late_delivery.png" alt="Shewhart p-Charts for Late Delivery and Cancellation Rates" loading="lazy" />
+            </picture>
+          </article>
+          <article class="chart-panel">
+            <h3>X&#772; &amp; S Control Charts: Shipping Lead-Time Variance</h3>
+            <p>Monitors average days behind schedule (+0.598d center line) and within-month volatility, catching June 2016's spike (+0.76d) and June 2017's dip (+0.48d).</p>
+            <picture data-chart="spc_xbar_lead_time_drift">
+              <source srcset="images/spc_xbar_lead_time_drift_light.png" media="(prefers-color-scheme: light)" />
+              <img src="images/spc_xbar_lead_time_drift.png" alt="X-bar and S Control Charts for Lead-Time Variance" loading="lazy" />
+            </picture>
+          </article>
+          <article class="chart-panel">
+            <h3>Region &times; Shipping Mode Posterior Risk Matrix</h3>
+            <p>Across all 12 highest-volume regions, First Class stays near 98–99% late and Second Class sits at 73–84%, confirming a global SLA calibration gap.</p>
+            <picture data-chart="lane_risk_heatmap_shipping_mode">
+              <source srcset="images/lane_risk_heatmap_shipping_mode_light.png" media="(prefers-color-scheme: light)" />
+              <img src="images/lane_risk_heatmap_shipping_mode.png" alt="Region by Shipping Mode Posterior Risk Heatmap" loading="lazy" />
+            </picture>
+          </article>
+          <article class="chart-panel">
+            <h3>Late-Delivery Revenue Pareto &amp; Variance Decomposition</h3>
+            <p>Just 10 SKUs account for 85.68% ($5.67M) of all revenue exposed to late deliveries, while Standard Class SKU variance collapses to pure random noise.</p>
+            <picture data-chart="sku_financial_exposure_pareto">
+              <source srcset="images/sku_financial_exposure_pareto_light.png" media="(prefers-color-scheme: light)" />
+              <img src="images/sku_financial_exposure_pareto.png" alt="Top 10 SKUs Revenue Exposure Pareto and Variance Decomposition" loading="lazy" />
+            </picture>
+          </article>
+          <article class="chart-panel">
+            <h3>Executive 4-Panel Operations Summary</h3>
+            <p>Combines the 37-month late-rate control chart, shipping tier SLA gap, SKU Bayesian shrinkage funnel, and top revenue-at-risk products.</p>
+            <picture data-chart="ops_overview_preview">
+              <source srcset="images/ops_overview_preview_light.png" media="(prefers-color-scheme: light)" />
+              <img src="images/ops_overview_preview.png" alt="4-Panel Executive Operations Summary" loading="lazy" />
+            </picture>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <!-- VIEW 2: AG GRID INTERACTIVE TABLES -->
+    <div id="view-grids" class="view-pane" hidden>
+      <section class="layout-region">
+        <h2>Interactive SKU Empirical Bayes Ledger (All 116 SKUs)</h2>
+        <p class="region-lead">
+          Sort, filter, or export every SKU with its raw late rate, Empirical Bayes posterior rate, 95% Bayesian credible interval, shrinkage shift, and revenue exposed to late delivery.
+        </p>
+        <div id="skuGrid" class="ag-theme-quartz-dark" style="height: 500px; width: 100%;"></div>
+      </section>
+
+      <section class="layout-region">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-block-end:8px;">
+          <h2>Monthly Statistical Process Control Log (37 Months: Jan 2015 – Jan 2018)</h2>
+          <button type="button" class="action-btn" id="btnExportSpc">Export 37 Months SPC CSV</button>
+        </div>
+        <p class="region-lead">
+          Monthly subgroup sizes, late and cancellation rates against &plusmn;3&sigma; limits, lead-time variance, and automated Nelson run-rule status flags.
+        </p>
+        <div id="spcGrid" class="ag-theme-quartz-dark" style="height: 410px; width: 100%;"></div>
+      </section>
+
+      <section class="layout-region">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-block-end:8px;">
+          <h2>Region &times; Shipping Mode Lane Matrix (All 92 Operational Lanes)</h2>
+          <button type="button" class="action-btn" id="btnExportLanes">Export 92 Lanes CSV</button>
+        </div>
+        <p class="region-lead">
+          Empirical Bayes posterior late-delivery risk and credible intervals across every global shipping corridor.
+        </p>
+        <div id="laneGrid" class="ag-theme-quartz-dark" style="height: 410px; width: 100%;"></div>
+      </section>
+    </div>
+
+    <!-- VIEW 3: SHRINKAGE & RISK COMPARISON MATRIX -->
+    <div id="view-performers" class="view-pane" hidden>
+      <section class="layout-region">
+        <h2>Credible Risk Ranking vs. Raw-Rate Traps (Top 5 &amp; Bottom 5 Comparisons)</h2>
+        <p class="region-lead">
+          Side-by-side comparison showing why ranking on raw percentages misleads operations teams—pulling 3-to-16 order noise back to the baseline so focus stays on high-volume bottlenecks.
+        </p>
+        <div class="performers-grid" id="performers-container"></div>
+      </section>
+    </div>
+
+    <!-- VIEW 4: STAR SCHEMA SQL & DATA HYGIENE CONTRACTS -->
+    <div id="view-schema" class="view-pane" hidden>
+      <section class="layout-region">
+        <h2>Production Data Hygiene &amp; Statistical Guardrails</h2>
+        <p class="region-lead">
+          Real-world quirks caught inside <code>DataCoSupplyChainDataset.csv</code> before running Empirical Bayes estimation or Shewhart control limits.
+        </p>
+        <div tabindex="0" role="region" aria-labelledby="hygiene-table-caption" class="table-wrapper">
+          <table class="data-table hygiene-table">
+            <caption id="hygiene-table-caption">Data Cleaning Rules &amp; Operational Integrity Contracts</caption>
+            <thead>
+              <tr>
+                <th scope="col">Field / Scope</th>
+                <th scope="col">Observed Raw Anomaly</th>
+                <th scope="col">Cleaning &amp; Statistical Rule</th>
+              </tr>
+            </thead>
+            <tbody id="hygiene-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="layout-region">
+        <h2>Relational Star Schema DDL &amp; Analytical Views (<code>sql/sku_ops_star_schema.sql</code>)</h2>
+        <p class="region-lead">
+          Normalizes the 44-column operational CSV into 3 Dimension tables (<code>dim_sku</code>, <code>dim_geography</code>, <code>dim_customer</code>), 1 Fact table (<code>fact_order_items</code>), and 2 analytical SQL views feeding the Empirical Bayes and SPC layers.
+        </p>
+        <pre class="sql-block"><code id="sql-ddl-code"></code></pre>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const OPS_DATA = {"dataset":{"source_file":"DataCoSupplyChainDataset.csv","total_order_items":58894,"unique_orders":31160,"unique_skus":116,"unique_categories":49,"unique_departments":11,"markets_count":5,"regions_count":23,"lanes_count":92,"months_count":37,"date_start":"2015-01","date_end":"2018-01","total_sales":11521396.29,"late_sales_exposure":6617043.27,"late_sales_share_pct":57.43,"total_profit":1261692.22,"overall_late_pct":57.75,"overall_canceled_pct":2.19,"overall_mean_delay_days":0.598},"empirical_bayes":{"sku_prior":{"alpha0":263.36,"beta0":192.68,"prior_sample_size":456.03,"baseline_rate_pct":57.75,"observed_variance":0.001014,"binomial_noise_variance":0.000481,"true_between_variance":0.000534},"standard_class_sku_prior":{"alpha0":89506.12,"beta0":146077.09,"prior_sample_size":235583.21,"baseline_rate_pct":37.99,"observed_variance":0.000741,"binomial_noise_variance":0.000832,"true_between_variance":0},"lane_prior":{"alpha0":1.7,"beta0":1.24,"prior_sample_size":2.94,"baseline_rate_pct":57.75,"observed_variance":0.062262,"binomial_noise_variance":0.000381,"true_between_variance":0.06188}},"spc_summary":{"months_count":37,"p_bar_late_pct":57.75,"p_bar_canc_pct":2.19,"x_bar_delay_days":0.598,"s_bar_delay_days":1.474,"late_out_of_control_months":["2015-07","2016-08","2017-05","2017-06","2017-07"],"canc_out_of_control_months":["2015-07","2016-07","2016-10","2017-05","2017-06","2017-07","2017-09","2017-10","2017-11"],"delay_out_of_control_months":["2016-06","2017-06"]},"shipping_modes":[{"shipping_mode":"First Class","n_orders":10627,"order_share_pct":18.04,"late_orders":10508,"late_pct":98.88,"avg_scheduled_days":1,"avg_real_days":2,"mean_delay_days":1,"total_sales":2074746.84},{"shipping_mode":"Second Class","n_orders":11859,"order_share_pct":20.14,"late_orders":9308,"late_pct":78.49,"avg_scheduled_days":2,"avg_real_days":3.99,"mean_delay_days":1.99,"total_sales":2290161.84},{"shipping_mode":"Same Day","n_orders":3576,"order_share_pct":6.07,"late_orders":1721,"late_pct":48.13,"avg_scheduled_days":0,"avg_real_days":0.49,"mean_delay_days":0.49,"total_sales":668909.4},{"shipping_mode":"Standard Class","n_orders":32832,"order_share_pct":55.75,"late_orders":12474,"late_pct":37.99,"avg_scheduled_days":4,"avg_real_days":3.98,"mean_delay_days":-0.02,"total_sales":6487578.21}],"data_hygiene_rules":[{"field":"order date (DateOrders)","raw_anomaly":"Mixed timestamp formats: 35,498 rows use MM/DD/YYYY HH:MM and 23,396 rows use MM-DD-YYYY HH:MM.","clean_rule":"Parse with explicit format='mixed' (dayfirst=False) so zero orders drop or misalign across months."},{"field":"Encoding & Tail Whitespace","raw_anomaly":"CSV uses latin1 encoding (non-UTF8 accent bytes) and trailing spaces in department names ('Health and Beauty ').","clean_rule":"Read with encoding='latin1' and strip whitespace across categorical dimensions before grouping."},{"field":"Shipping Mode SLA Paradox","raw_anomaly":"First Class promises 1-day shipping but averages 2.00 real days (98.9% late); Second Class promises 2 days but averages 3.99 days (78.5% late).","clean_rule":"Compute lead_time_variance_days = real - scheduled and evaluate SKU variance both overall and inside Standard Class."},{"field":"Delivery Status vs. Late Risk","raw_anomaly":"1,291 canceled orders (672 SUSPECTED_FRAUD + 619 CANCELED) carry Late_delivery_risk = 0 despite never delivering.","clean_rule":"Track Shipping Canceled as a separate SPC p-chart alongside Late Delivery Risk so cancellations never masquerade as on-time wins."}],"top_bottom_matrix":{"highest_eb_risk":[{"sku_id":1004,"product_name":"Field & Stream Sportsman 16 Gun Fire Safe","category_name":"Fishing","n_orders":2240,"raw_late_pct":61.92,"eb_late_pct":61.21,"shrinkage_pp":-0.71,"late_sales":554772.28},{"sku_id":957,"product_name":"Diamondback Women's Serene Classic Comfort Bi","category_name":"Camping & Hiking","n_orders":4915,"raw_late_pct":61.3,"eb_late_pct":61,"shrinkage_pp":-0.3,"late_sales":903839.77},{"sku_id":1353,"product_name":"Porcelain crafts","category_name":"Crafts","n_orders":193,"raw_late_pct":67.88,"eb_late_pct":60.76,"shrinkage_pp":-7.11,"late_sales":60453.88},{"sku_id":564,"product_name":"Nike Men's Deutschland Weltmeister Winners Bl","category_name":"Girls' Apparel","n_orders":129,"raw_late_pct":68.99,"eb_late_pct":60.23,"shrinkage_pp":-8.76,"late_sales":8040},{"sku_id":1359,"product_name":"Adult dog supplies","category_name":"Pet Supplies","n_orders":189,"raw_late_pct":66.14,"eb_late_pct":60.21,"shrinkage_pp":-5.93,"late_sales":10550}],"lowest_eb_risk":[{"sku_id":1073,"product_name":"Pelican Sunstream 100 Kayak","category_name":"Water Sports","n_orders":3815,"raw_late_pct":52.92,"eb_late_pct":53.44,"shrinkage_pp":0.52,"late_sales":403779.82},{"sku_id":135,"product_name":"Nike Dri-FIT Crew Sock 6 Pack","category_name":"Hockey","n_orders":308,"raw_late_pct":50.32,"eb_late_pct":54.76,"shrinkage_pp":4.43,"late_sales":9746},{"sku_id":642,"product_name":"Columbia Men's PFG Anchor Tough T-Shirt","category_name":"Shop By Sport","n_orders":126,"raw_late_pct":47.62,"eb_late_pct":55.56,"shrinkage_pp":7.94,"late_sales":5010},{"sku_id":715,"product_name":"TaylorMade Women's RBZ SL Rescue","category_name":"Golf Apparel","n_orders":68,"raw_late_pct":42.65,"eb_late_pct":55.79,"shrinkage_pp":13.14,"late_sales":3769.71},{"sku_id":793,"product_name":"Hirzl Women's Hybrid Golf Glove","category_name":"Golf Balls","n_orders":311,"raw_late_pct":53.05,"eb_late_pct":55.85,"shrinkage_pp":2.79,"late_sales":7420.05}],"largest_downward_shrinkage":[{"sku_id":58,"product_name":"Diamondback Boys' Insight 24 Performance Hybr","category_name":"Basketball","n_orders":13,"raw_late_pct":84.62,"eb_late_pct":58.49,"shrinkage_pp":-26.12,"late_sales":3299.89},{"sku_id":364,"product_name":"Total Gym 1400","category_name":"Cleats","n_orders":16,"raw_late_pct":81.25,"eb_late_pct":58.55,"shrinkage_pp":-22.7,"late_sales":3899.87},{"sku_id":305,"product_name":"Mio ALPHA Heart Rate Monitor/Sport Watch","category_name":"Kids' Golf Clubs","n_orders":27,"raw_late_pct":70.37,"eb_late_pct":58.45,"shrinkage_pp":-11.92,"late_sales":3781},{"sku_id":982,"product_name":"insta-bed Neverflat Air Mattress","category_name":"Hunting & Shooting","n_orders":20,"raw_late_pct":70,"eb_late_pct":58.26,"shrinkage_pp":-11.74,"late_sales":2099.86},{"sku_id":743,"product_name":"Ogio Race Golf Shoes","category_name":"Golf Bags & Carts","n_orders":61,"raw_late_pct":68.85,"eb_late_pct":59.06,"shrinkage_pp":-9.79,"late_sales":7139.58}],"largest_upward_shrinkage":[{"sku_id":226,"product_name":"Bowflex SelectTech 1090 Dumbbells","category_name":"Fitness Accessories","n_orders":3,"raw_late_pct":33.33,"eb_late_pct":57.59,"shrinkage_pp":24.26,"late_sales":599.99},{"sku_id":208,"product_name":"SOLE E35 Elliptical","category_name":"Strength Training","n_orders":3,"raw_late_pct":33.33,"eb_late_pct":57.59,"shrinkage_pp":24.26,"late_sales":1999.99},{"sku_id":845,"product_name":"Garmin Approach S4 Golf GPS Watch","category_name":"Kids' Golf Clubs","n_orders":5,"raw_late_pct":40,"eb_late_pct":57.56,"shrinkage_pp":17.56,"late_sales":599.98},{"sku_id":359,"product_name":"Nike Men's Free TR 5.0 TB Training Shoe","category_name":"As Seen on  TV!","n_orders":25,"raw_late_pct":40,"eb_late_pct":56.83,"shrinkage_pp":16.83,"late_sales":3299.67},{"sku_id":295,"product_name":"Fitbit The One Wireless Activity & Sleep Trac","category_name":"Kids' Golf Clubs","n_orders":24,"raw_late_pct":41.67,"eb_late_pct":56.95,"shrinkage_pp":15.28,"late_sales":3398.3}]},"monthly_spc":[{"order_month":"2015-01","n_orders":1677,"late_orders":958,"late_pct":57.13,"ucl_late_pct":61.37,"lcl_late_pct":54.13,"late_spc_status":"In Control","canceled_orders":34,"canc_pct":2.03,"ucl_canc_pct":3.26,"lcl_canc_pct":1.12,"canc_spc_status":"In Control","mean_delay_days":0.574,"ucl_delay_days":0.706,"lcl_delay_days":0.49,"delay_spc_status":"In Control","std_delay_days":1.472,"standard_share_pct":58.2,"monthly_sales":332277.27},{"order_month":"2015-02","n_orders":1396,"late_orders":781,"late_pct":55.95,"ucl_late_pct":61.72,"lcl_late_pct":53.78,"late_spc_status":"In Control","canceled_orders":40,"canc_pct":2.87,"ucl_canc_pct":3.37,"lcl_canc_pct":1.02,"canc_spc_status":"In Control","mean_delay_days":0.564,"ucl_delay_days":0.716,"lcl_delay_days":0.479,"delay_spc_status":"In Control","std_delay_days":1.477,"standard_share_pct":53,"monthly_sales":280432.1},{"order_month":"2015-03","n_orders":1566,"late_orders":896,"late_pct":57.22,"ucl_late_pct":61.49,"lcl_late_pct":54,"late_spc_status":"In Control","canceled_orders":38,"canc_pct":2.43,"ucl_canc_pct":3.3,"lcl_canc_pct":1.08,"canc_spc_status":"In Control","mean_delay_days":0.584,"ucl_delay_days":0.709,"lcl_delay_days":0.486,"delay_spc_status":"In Control","std_delay_days":1.452,"standard_share_pct":53.1,"monthly_sales":307710.45},{"order_month":"2015-04","n_orders":1553,"late_orders":909,"late_pct":58.53,"ucl_late_pct":61.51,"lcl_late_pct":53.99,"late_spc_status":"In Control","canceled_orders":25,"canc_pct":1.61,"ucl_canc_pct":3.31,"lcl_canc_pct":1.08,"canc_spc_status":"In Control","mean_delay_days":0.619,"ucl_delay_days":0.71,"lcl_delay_days":0.486,"delay_spc_status":"In Control","std_delay_days":1.481,"standard_share_pct":55.6,"monthly_sales":317001.15},{"order_month":"2015-05","n_orders":1707,"late_orders":1038,"late_pct":60.81,"ucl_late_pct":61.34,"lcl_late_pct":54.16,"late_spc_status":"In Control","canceled_orders":36,"canc_pct":2.11,"ucl_canc_pct":3.26,"lcl_canc_pct":1.13,"canc_spc_status":"In Control","mean_delay_days":0.657,"ucl_delay_days":0.705,"lcl_delay_days":0.491,"delay_spc_status":"In Control","std_delay_days":1.472,"standard_share_pct":53.4,"monthly_sales":342013.67},{"order_month":"2015-06","n_orders":1634,"late_orders":903,"late_pct":55.26,"ucl_late_pct":61.42,"lcl_late_pct":54.08,"late_spc_status":"In Control","canceled_orders":22,"canc_pct":1.35,"ucl_canc_pct":3.28,"lcl_canc_pct":1.11,"canc_spc_status":"In Control","mean_delay_days":0.518,"ucl_delay_days":0.707,"lcl_delay_days":0.488,"delay_spc_status":"In Control","std_delay_days":1.529,"standard_share_pct":60.5,"monthly_sales":321616.27},{"order_month":"2015-07","n_orders":1719,"late_orders":1045,"late_pct":60.79,"ucl_late_pct":61.32,"lcl_late_pct":54.18,"late_spc_status":"Rule 2 (2/3 >2s)","canceled_orders":18,"canc_pct":1.05,"ucl_canc_pct":3.25,"lcl_canc_pct":1.13,"canc_spc_status":"Rule 1 (>3s) | Rule 2 (2/3 >2s)","mean_delay_days":0.635,"ucl_delay_days":0.704,"lcl_delay_days":0.491,"delay_spc_status":"In Control","std_delay_days":1.487,"standard_share_pct":55.8,"monthly_sales":336597.15},{"order_month":"2015-08","n_orders":1774,"late_orders":1064,"late_pct":59.98,"ucl_late_pct":61.27,"lcl_late_pct":54.23,"late_spc_status":"In Control","canceled_orders":36,"canc_pct":2.03,"ucl_canc_pct":3.24,"lcl_canc_pct":1.15,"canc_spc_status":"In Control","mean_delay_days":0.666,"ucl_delay_days":0.703,"lcl_delay_days":0.493,"delay_spc_status":"In Control","std_delay_days":1.517,"standard_share_pct":51.6,"monthly_sales":352625.71},{"order_month":"2015-09","n_orders":1706,"late_orders":980,"late_pct":57.44,"ucl_late_pct":61.34,"lcl_late_pct":54.16,"late_spc_status":"In Control","canceled_orders":36,"canc_pct":2.11,"ucl_canc_pct":3.26,"lcl_canc_pct":1.13,"canc_spc_status":"In Control","mean_delay_days":0.545,"ucl_delay_days":0.705,"lcl_delay_days":0.491,"delay_spc_status":"In Control","std_delay_days":1.467,"standard_share_pct":57.2,"monthly_sales":340520.5},{"order_month":"2015-10","n_orders":1697,"late_orders":965,"late_pct":56.87,"ucl_late_pct":61.35,"lcl_late_pct":54.15,"late_spc_status":"In Control","canceled_orders":43,"canc_pct":2.53,"ucl_canc_pct":3.26,"lcl_canc_pct":1.13,"canc_spc_status":"In Control","mean_delay_days":0.566,"ucl_delay_days":0.705,"lcl_delay_days":0.49,"delay_spc_status":"In Control","std_delay_days":1.51,"standard_share_pct":55.2,"monthly_sales":340863.67},{"order_month":"2015-11","n_orders":1746,"late_orders":1001,"late_pct":57.33,"ucl_late_pct":61.3,"lcl_late_pct":54.2,"late_spc_status":"In Control","canceled_orders":23,"canc_pct":1.32,"ucl_canc_pct":3.24,"lcl_canc_pct":1.14,"canc_spc_status":"In Control","mean_delay_days":0.601,"ucl_delay_days":0.704,"lcl_delay_days":0.492,"delay_spc_status":"In Control","std_delay_days":1.492,"standard_share_pct":55.8,"monthly_sales":344405.62},{"order_month":"2015-12","n_orders":1761,"late_orders":1042,"late_pct":59.17,"ucl_late_pct":61.28,"lcl_late_pct":54.22,"late_spc_status":"In Control","canceled_orders":35,"canc_pct":1.99,"ucl_canc_pct":3.24,"lcl_canc_pct":1.15,"canc_spc_status":"In Control","mean_delay_days":0.585,"ucl_delay_days":0.703,"lcl_delay_days":0.492,"delay_spc_status":"In Control","std_delay_days":1.459,"standard_share_pct":54.6,"monthly_sales":361504.64},{"order_month":"2016-01","n_orders":1629,"late_orders":962,"late_pct":59.05,"ucl_late_pct":61.42,"lcl_late_pct":54.08,"late_spc_status":"In Control","canceled_orders":28,"canc_pct":1.72,"ucl_canc_pct":3.28,"lcl_canc_pct":1.1,"canc_spc_status":"In Control","mean_delay_days":0.658,"ucl_delay_days":0.707,"lcl_delay_days":0.488,"delay_spc_status":"In Control","std_delay_days":1.48,"standard_share_pct":54.3,"monthly_sales":309284.46},{"order_month":"2016-02","n_orders":1365,"late_orders":765,"late_pct":56.04,"ucl_late_pct":61.76,"lcl_late_pct":53.74,"late_spc_status":"In Control","canceled_orders":30,"canc_pct":2.2,"ucl_canc_pct":3.38,"lcl_canc_pct":1,"canc_spc_status":"In Control","mean_delay_days":0.571,"ucl_delay_days":0.717,"lcl_delay_days":0.478,"delay_spc_status":"In Control","std_delay_days":1.479,"standard_share_pct":59.6,"monthly_sales":241063.45},{"order_month":"2016-03","n_orders":1472,"late_orders":847,"late_pct":57.54,"ucl_late_pct":61.61,"lcl_late_pct":53.89,"late_spc_status":"In Control","canceled_orders":21,"canc_pct":1.43,"ucl_canc_pct":3.34,"lcl_canc_pct":1.05,"canc_spc_status":"In Control","mean_delay_days":0.579,"ucl_delay_days":0.713,"lcl_delay_days":0.482,"delay_spc_status":"In Control","std_delay_days":1.486,"standard_share_pct":55.1,"monthly_sales":254159.83},{"order_month":"2016-04","n_orders":1449,"late_orders":846,"late_pct":58.39,"ucl_late_pct":61.64,"lcl_late_pct":53.86,"late_spc_status":"In Control","canceled_orders":34,"canc_pct":2.35,"ucl_canc_pct":3.35,"lcl_canc_pct":1.04,"canc_spc_status":"In Control","mean_delay_days":0.618,"ucl_delay_days":0.714,"lcl_delay_days":0.482,"delay_spc_status":"In Control","std_delay_days":1.486,"standard_share_pct":55.3,"monthly_sales":252803.04},{"order_month":"2016-05","n_orders":1538,"late_orders":916,"late_pct":59.56,"ucl_late_pct":61.53,"lcl_late_pct":53.97,"late_spc_status":"In Control","canceled_orders":42,"canc_pct":2.73,"ucl_canc_pct":3.31,"lcl_canc_pct":1.07,"canc_spc_status":"In Control","mean_delay_days":0.643,"ucl_delay_days":0.71,"lcl_delay_days":0.485,"delay_spc_status":"In Control","std_delay_days":1.472,"standard_share_pct":55.4,"monthly_sales":263379.84},{"order_month":"2016-06","n_orders":1457,"late_orders":897,"late_pct":61.56,"ucl_late_pct":61.63,"lcl_late_pct":53.87,"late_spc_status":"In Control","canceled_orders":38,"canc_pct":2.61,"ucl_canc_pct":3.34,"lcl_canc_pct":1.04,"canc_spc_status":"In Control","mean_delay_days":0.756,"ucl_delay_days":0.714,"lcl_delay_days":0.482,"delay_spc_status":"Rule 1 (>3s)","std_delay_days":1.467,"standard_share_pct":52,"monthly_sales":252345.46},{"order_month":"2016-07","n_orders":1473,"late_orders":799,"late_pct":54.24,"ucl_late_pct":61.61,"lcl_late_pct":53.89,"late_spc_status":"In Control","canceled_orders":53,"canc_pct":3.6,"ucl_canc_pct":3.34,"lcl_canc_pct":1.05,"canc_spc_status":"Rule 1 (>3s)","mean_delay_days":0.579,"ucl_delay_days":0.713,"lcl_delay_days":0.483,"delay_spc_status":"In Control","std_delay_days":1.489,"standard_share_pct":55.2,"monthly_sales":261091.2},{"order_month":"2016-08","n_orders":1534,"late_orders":928,"late_pct":60.5,"ucl_late_pct":61.53,"lcl_late_pct":53.97,"late_spc_status":"Rule 2 (2/3 >2s)","canceled_orders":24,"canc_pct":1.56,"ucl_canc_pct":3.31,"lcl_canc_pct":1.07,"canc_spc_status":"In Control","mean_delay_days":0.651,"ucl_delay_days":0.711,"lcl_delay_days":0.485,"delay_spc_status":"In Control","std_delay_days":1.438,"standard_share_pct":56,"monthly_sales":270769.82},{"order_month":"2016-09","n_orders":1546,"late_orders":867,"late_pct":56.08,"ucl_late_pct":61.52,"lcl_late_pct":53.98,"late_spc_status":"In Control","canceled_orders":20,"canc_pct":1.29,"ucl_canc_pct":3.31,"lcl_canc_pct":1.07,"canc_spc_status":"In Control","mean_delay_days":0.538,"ucl_delay_days":0.71,"lcl_delay_days":0.485,"delay_spc_status":"In Control","std_delay_days":1.459,"standard_share_pct":58,"monthly_sales":266514.12},{"order_month":"2016-10","n_orders":1531,"late_orders":911,"late_pct":59.5,"ucl_late_pct":61.54,"lcl_late_pct":53.96,"late_spc_status":"In Control","canceled_orders":22,"canc_pct":1.44,"ucl_canc_pct":3.31,"lcl_canc_pct":1.07,"canc_spc_status":"Rule 2 (2/3 >2s)","mean_delay_days":0.588,"ucl_delay_days":0.711,"lcl_delay_days":0.485,"delay_spc_status":"In Control","std_delay_days":1.397,"standard_share_pct":55.2,"monthly_sales":262879.32},{"order_month":"2016-11","n_orders":1486,"late_orders":902,"late_pct":60.7,"ucl_late_pct":61.59,"lcl_late_pct":53.91,"late_spc_status":"In Control","canceled_orders":33,"canc_pct":2.22,"ucl_canc_pct":3.33,"lcl_canc_pct":1.05,"canc_spc_status":"In Control","mean_delay_days":0.661,"ucl_delay_days":0.712,"lcl_delay_days":0.483,"delay_spc_status":"In Control","std_delay_days":1.454,"standard_share_pct":56.5,"monthly_sales":260673.51},{"order_month":"2016-12","n_orders":1561,"late_orders":937,"late_pct":60.03,"ucl_late_pct":61.5,"lcl_late_pct":54,"late_spc_status":"In Control","canceled_orders":35,"canc_pct":2.24,"ucl_canc_pct":3.3,"lcl_canc_pct":1.08,"canc_spc_status":"In Control","mean_delay_days":0.612,"ucl_delay_days":0.71,"lcl_delay_days":0.486,"delay_spc_status":"In Control","std_delay_days":1.419,"standard_share_pct":56.4,"monthly_sales":274121.75},{"order_month":"2017-01","n_orders":1457,"late_orders":799,"late_pct":54.84,"ucl_late_pct":61.63,"lcl_late_pct":53.87,"late_spc_status":"In Control","canceled_orders":30,"canc_pct":2.06,"ucl_canc_pct":3.34,"lcl_canc_pct":1.04,"canc_spc_status":"In Control","mean_delay_days":0.539,"ucl_delay_days":0.714,"lcl_delay_days":0.482,"delay_spc_status":"In Control","std_delay_days":1.552,"standard_share_pct":58.8,"monthly_sales":258710.52},{"order_month":"2017-02","n_orders":1750,"late_orders":1032,"late_pct":58.97,"ucl_late_pct":61.29,"lcl_late_pct":54.21,"late_spc_status":"In Control","canceled_orders":36,"canc_pct":2.06,"ucl_canc_pct":3.24,"lcl_canc_pct":1.14,"canc_spc_status":"In Control","mean_delay_days":0.697,"ucl_delay_days":0.703,"lcl_delay_days":0.492,"delay_spc_status":"In Control","std_delay_days":1.496,"standard_share_pct":54.1,"monthly_sales":331789.62},{"order_month":"2017-03","n_orders":1948,"late_orders":1122,"late_pct":57.6,"ucl_late_pct":61.11,"lcl_late_pct":54.39,"late_spc_status":"In Control","canceled_orders":41,"canc_pct":2.1,"ucl_canc_pct":3.19,"lcl_canc_pct":1.2,"canc_spc_status":"In Control","mean_delay_days":0.573,"ucl_delay_days":0.698,"lcl_delay_days":0.498,"delay_spc_status":"In Control","std_delay_days":1.482,"standard_share_pct":54.3,"monthly_sales":356267.61},{"order_month":"2017-04","n_orders":1938,"late_orders":1064,"late_pct":54.9,"ucl_late_pct":61.12,"lcl_late_pct":54.38,"late_spc_status":"In Control","canceled_orders":47,"canc_pct":2.43,"ucl_canc_pct":3.19,"lcl_canc_pct":1.19,"canc_spc_status":"In Control","mean_delay_days":0.551,"ucl_delay_days":0.698,"lcl_delay_days":0.497,"delay_spc_status":"In Control","std_delay_days":1.453,"standard_share_pct":57,"monthly_sales":361568.57},{"order_month":"2017-05","n_orders":2044,"late_orders":1122,"late_pct":54.89,"ucl_late_pct":61.03,"lcl_late_pct":54.47,"late_spc_status":"Rule 2 (2/3 >2s)","canceled_orders":74,"canc_pct":3.62,"ucl_canc_pct":3.16,"lcl_canc_pct":1.22,"canc_spc_status":"Rule 1 (>3s)","mean_delay_days":0.544,"ucl_delay_days":0.696,"lcl_delay_days":0.5,"delay_spc_status":"In Control","std_delay_days":1.423,"standard_share_pct":57.3,"monthly_sales":407634.71},{"order_month":"2017-06","n_orders":1910,"late_orders":1021,"late_pct":53.46,"ucl_late_pct":61.14,"lcl_late_pct":54.36,"late_spc_status":"Rule 1 (>3s) | Rule 2 (2/3 >2s)","canceled_orders":59,"canc_pct":3.09,"ucl_canc_pct":3.2,"lcl_canc_pct":1.19,"canc_spc_status":"Rule 2 (2/3 >2s)","mean_delay_days":0.477,"ucl_delay_days":0.699,"lcl_delay_days":0.497,"delay_spc_status":"Rule 1 (>3s)","std_delay_days":1.44,"standard_share_pct":59.6,"monthly_sales":375764.32},{"order_month":"2017-07","n_orders":2035,"late_orders":1127,"late_pct":55.38,"ucl_late_pct":61.03,"lcl_late_pct":54.46,"late_spc_status":"Rule 2 (2/3 >2s)","canceled_orders":64,"canc_pct":3.14,"ucl_canc_pct":3.17,"lcl_canc_pct":1.22,"canc_spc_status":"Rule 2 (2/3 >2s)","mean_delay_days":0.575,"ucl_delay_days":0.696,"lcl_delay_days":0.5,"delay_spc_status":"In Control","std_delay_days":1.484,"standard_share_pct":55.5,"monthly_sales":394500.31},{"order_month":"2017-08","n_orders":2134,"late_orders":1246,"late_pct":58.39,"ucl_late_pct":60.96,"lcl_late_pct":54.54,"late_spc_status":"In Control","canceled_orders":48,"canc_pct":2.25,"ucl_canc_pct":3.14,"lcl_canc_pct":1.24,"canc_spc_status":"In Control","mean_delay_days":0.619,"ucl_delay_days":0.693,"lcl_delay_days":0.502,"delay_spc_status":"In Control","std_delay_days":1.539,"standard_share_pct":55.6,"monthly_sales":414437.35},{"order_month":"2017-09","n_orders":1932,"late_orders":1103,"late_pct":57.09,"ucl_late_pct":61.12,"lcl_late_pct":54.38,"late_spc_status":"In Control","canceled_orders":61,"canc_pct":3.16,"ucl_canc_pct":3.19,"lcl_canc_pct":1.19,"canc_spc_status":"Rule 2 (2/3 >2s)","mean_delay_days":0.58,"ucl_delay_days":0.698,"lcl_delay_days":0.497,"delay_spc_status":"In Control","std_delay_days":1.473,"standard_share_pct":56.6,"monthly_sales":396568.14},{"order_month":"2017-10","n_orders":913,"late_orders":518,"late_pct":56.74,"ucl_late_pct":62.65,"lcl_late_pct":52.85,"late_spc_status":"In Control","canceled_orders":5,"canc_pct":0.55,"ucl_canc_pct":3.65,"lcl_canc_pct":0.74,"canc_spc_status":"Rule 1 (>3s)","mean_delay_days":0.538,"ucl_delay_days":0.744,"lcl_delay_days":0.451,"delay_spc_status":"In Control","std_delay_days":1.48,"standard_share_pct":56.1,"monthly_sales":455453.36},{"order_month":"2017-11","n_orders":768,"late_orders":449,"late_pct":58.46,"ucl_late_pct":63.1,"lcl_late_pct":52.4,"late_spc_status":"In Control","canceled_orders":8,"canc_pct":1.04,"ucl_canc_pct":3.78,"lcl_canc_pct":0.61,"canc_spc_status":"Rule 2 (2/3 >2s)","mean_delay_days":0.621,"ucl_delay_days":0.757,"lcl_delay_days":0.438,"delay_spc_status":"In Control","std_delay_days":1.463,"standard_share_pct":53.9,"monthly_sales":237348.86},{"order_month":"2017-12","n_orders":1017,"late_orders":617,"late_pct":60.67,"ucl_late_pct":62.4,"lcl_late_pct":53.1,"late_spc_status":"In Control","canceled_orders":23,"canc_pct":2.26,"ucl_canc_pct":3.57,"lcl_canc_pct":0.81,"canc_spc_status":"In Control","mean_delay_days":0.668,"ucl_delay_days":0.736,"lcl_delay_days":0.459,"delay_spc_status":"In Control","std_delay_days":1.427,"standard_share_pct":53.1,"monthly_sales":222565.19},{"order_month":"2018-01","n_orders":1071,"late_orders":632,"late_pct":59.01,"ucl_late_pct":62.28,"lcl_late_pct":53.22,"late_spc_status":"In Control","canceled_orders":29,"canc_pct":2.71,"ucl_canc_pct":3.53,"lcl_canc_pct":0.85,"canc_spc_status":"In Control","mean_delay_days":0.642,"ucl_delay_days":0.733,"lcl_delay_days":0.463,"delay_spc_status":"In Control","std_delay_days":1.481,"standard_share_pct":55.5,"monthly_sales":162133.81}],"lanes":[{"market":"Europe","order_region":"Western Europe","shipping_mode":"Standard Class","n_orders":5382,"late_orders":1977,"raw_late_pct":36.73,"eb_late_pct":36.75,"ci_low_pct":35.47,"ci_high_pct":38.04,"shrinkage_pp":0.01,"mean_delay_days":-0.07,"late_sales":436972.44},{"market":"LATAM","order_region":"Central America","shipping_mode":"Standard Class","n_orders":5307,"late_orders":1992,"raw_late_pct":37.54,"eb_late_pct":37.55,"ci_low_pct":36.25,"ci_high_pct":38.86,"shrinkage_pp":0.01,"mean_delay_days":-0.03,"late_sales":399870.35},{"market":"Europe","order_region":"Western Europe","shipping_mode":"First Class","n_orders":1810,"late_orders":1786,"raw_late_pct":98.67,"eb_late_pct":98.61,"ci_low_pct":97.95,"ci_high_pct":99.06,"shrinkage_pp":-0.07,"mean_delay_days":1,"late_sales":382546.05},{"market":"LATAM","order_region":"Central America","shipping_mode":"First Class","n_orders":1785,"late_orders":1766,"raw_late_pct":98.94,"eb_late_pct":98.87,"ci_low_pct":98.26,"ci_high_pct":99.27,"shrinkage_pp":-0.07,"mean_delay_days":1,"late_sales":350155.19},{"market":"Europe","order_region":"Western Europe","shipping_mode":"Second Class","n_orders":1994,"late_orders":1608,"raw_late_pct":80.64,"eb_late_pct":80.61,"ci_low_pct":78.82,"ci_high_pct":82.28,"shrinkage_pp":-0.03,"mean_delay_days":2.06,"late_sales":340276.59},{"market":"LATAM","order_region":"Central America","shipping_mode":"Second Class","n_orders":1871,"late_orders":1406,"raw_late_pct":75.15,"eb_late_pct":75.12,"ci_low_pct":73.11,"ci_high_pct":77.03,"shrinkage_pp":-0.03,"mean_delay_days":1.91,"late_sales":262597.64},{"market":"LATAM","order_region":"South America","shipping_mode":"Standard Class","n_orders":2707,"late_orders":1013,"raw_late_pct":37.42,"eb_late_pct":37.44,"ci_low_pct":35.64,"ci_high_pct":39.28,"shrinkage_pp":0.02,"mean_delay_days":-0.03,"late_sales":196691.76},{"market":"LATAM","order_region":"South America","shipping_mode":"First Class","n_orders":896,"late_orders":873,"raw_late_pct":97.43,"eb_late_pct":97.3,"ci_low_pct":96.02,"ci_high_pct":98.18,"shrinkage_pp":-0.13,"mean_delay_days":1,"late_sales":163155.55},{"market":"Europe","order_region":"Southern Europe","shipping_mode":"Standard Class","n_orders":1910,"late_orders":726,"raw_late_pct":38.01,"eb_late_pct":38.04,"ci_low_pct":35.89,"ci_high_pct":40.24,"shrinkage_pp":0.03,"mean_delay_days":-0.04,"late_sales":157554.36},{"market":"Europe","order_region":"Northern Europe","shipping_mode":"Standard Class","n_orders":1938,"late_orders":706,"raw_late_pct":36.43,"eb_late_pct":36.46,"ci_low_pct":34.35,"ci_high_pct":38.63,"shrinkage_pp":0.03,"mean_delay_days":-0.06,"late_sales":148824.41},{"market":"LATAM","order_region":"South America","shipping_mode":"Second Class","n_orders":1013,"late_orders":744,"raw_late_pct":73.45,"eb_late_pct":73.4,"ci_low_pct":70.6,"ci_high_pct":76.03,"shrinkage_pp":-0.05,"mean_delay_days":1.94,"late_sales":144366.44},{"market":"Pacific Asia","order_region":"Oceania","shipping_mode":"Standard Class","n_orders":1788,"late_orders":693,"raw_late_pct":38.76,"eb_late_pct":38.79,"ci_low_pct":36.56,"ci_high_pct":41.07,"shrinkage_pp":0.03,"mean_delay_days":-0.03,"late_sales":129446.27},{"market":"Pacific Asia","order_region":"Southeast Asia","shipping_mode":"Standard Class","n_orders":1790,"late_orders":684,"raw_late_pct":38.21,"eb_late_pct":38.24,"ci_low_pct":36.02,"ci_high_pct":40.52,"shrinkage_pp":0.03,"mean_delay_days":-0.02,"late_sales":128956.65},{"market":"Europe","order_region":"Northern Europe","shipping_mode":"Second Class","n_orders":702,"late_orders":570,"raw_late_pct":81.2,"eb_late_pct":81.1,"ci_low_pct":78.04,"ci_high_pct":83.82,"shrinkage_pp":-0.1,"mean_delay_days":2.14,"late_sales":126927.13},{"market":"Europe","order_region":"Southern Europe","shipping_mode":"First Class","n_orders":583,"late_orders":575,"raw_late_pct":98.63,"eb_late_pct":98.42,"ci_low_pct":97.02,"ci_high_pct":99.17,"shrinkage_pp":-0.21,"mean_delay_days":1,"late_sales":126772.91},{"market":"Europe","order_region":"Northern Europe","shipping_mode":"First Class","n_orders":567,"late_orders":561,"raw_late_pct":98.94,"eb_late_pct":98.73,"ci_low_pct":97.39,"ci_high_pct":99.39,"shrinkage_pp":-0.21,"mean_delay_days":1,"late_sales":124894.9},{"market":"Pacific Asia","order_region":"Southeast Asia","shipping_mode":"First Class","n_orders":574,"late_orders":569,"raw_late_pct":99.13,"eb_late_pct":98.92,"ci_low_pct":97.65,"ci_high_pct":99.51,"shrinkage_pp":-0.21,"mean_delay_days":1,"late_sales":113789.73},{"market":"Pacific Asia","order_region":"South Asia","shipping_mode":"Standard Class","n_orders":1444,"late_orders":564,"raw_late_pct":39.06,"eb_late_pct":39.1,"ci_low_pct":36.61,"ci_high_pct":41.64,"shrinkage_pp":0.04,"mean_delay_days":0,"late_sales":110675.9},{"market":"LATAM","order_region":"Caribbean","shipping_mode":"Standard Class","n_orders":1505,"late_orders":566,"raw_late_pct":37.61,"eb_late_pct":37.65,"ci_low_pct":35.24,"ci_high_pct":40.12,"shrinkage_pp":0.04,"mean_delay_days":-0.01,"late_sales":108732.7},{"market":"Pacific Asia","order_region":"Oceania","shipping_mode":"Second Class","n_orders":721,"late_orders":547,"raw_late_pct":75.87,"eb_late_pct":75.79,"ci_low_pct":72.54,"ci_high_pct":78.78,"shrinkage_pp":-0.07,"mean_delay_days":1.86,"late_sales":102749.4},{"market":"Pacific Asia","order_region":"Southeast Asia","shipping_mode":"Second Class","n_orders":647,"late_orders":512,"raw_late_pct":79.13,"eb_late_pct":79.04,"ci_low_pct":75.74,"ci_high_pct":82,"shrinkage_pp":-0.1,"mean_delay_days":1.91,"late_sales":101832.98},{"market":"Europe","order_region":"Southern Europe","shipping_mode":"Second Class","n_orders":630,"late_orders":498,"raw_late_pct":79.05,"eb_late_pct":78.95,"ci_low_pct":75.6,"ci_high_pct":81.95,"shrinkage_pp":-0.1,"mean_delay_days":1.92,"late_sales":101384.74},{"market":"Pacific Asia","order_region":"Eastern Asia","shipping_mode":"Standard Class","n_orders":1348,"late_orders":510,"raw_late_pct":37.83,"eb_late_pct":37.88,"ci_low_pct":35.33,"ci_high_pct":40.5,"shrinkage_pp":0.04,"mean_delay_days":-0.03,"late_sales":100575.01},{"market":"Pacific Asia","order_region":"South Asia","shipping_mode":"First Class","n_orders":496,"late_orders":495,"raw_late_pct":99.8,"eb_late_pct":99.55,"ci_low_pct":98.35,"ci_high_pct":99.88,"shrinkage_pp":-0.25,"mean_delay_days":1,"late_sales":99277.31},{"market":"Pacific Asia","order_region":"Oceania","shipping_mode":"First Class","n_orders":525,"late_orders":515,"raw_late_pct":98.1,"eb_late_pct":97.87,"ci_low_pct":96.22,"ci_high_pct":98.81,"shrinkage_pp":-0.22,"mean_delay_days":1,"late_sales":95828.8},{"market":"USCA","order_region":"West of USA","shipping_mode":"Standard Class","n_orders":1256,"late_orders":492,"raw_late_pct":39.17,"eb_late_pct":39.22,"ci_low_pct":36.55,"ci_high_pct":41.94,"shrinkage_pp":0.04,"mean_delay_days":0,"late_sales":88049.76},{"market":"LATAM","order_region":"Caribbean","shipping_mode":"First Class","n_orders":473,"late_orders":468,"raw_late_pct":98.94,"eb_late_pct":98.69,"ci_low_pct":97.16,"ci_high_pct":99.4,"shrinkage_pp":-0.25,"mean_delay_days":1,"late_sales":87559.86},{"market":"Pacific Asia","order_region":"Eastern Asia","shipping_mode":"First Class","n_orders":412,"late_orders":406,"raw_late_pct":98.54,"eb_late_pct":98.25,"ci_low_pct":96.43,"ci_high_pct":99.16,"shrinkage_pp":-0.29,"mean_delay_days":1,"late_sales":83434.21},{"market":"Pacific Asia","order_region":"Eastern Asia","shipping_mode":"Second Class","n_orders":475,"late_orders":384,"raw_late_pct":80.84,"eb_late_pct":80.7,"ci_low_pct":76.91,"ci_high_pct":83.99,"shrinkage_pp":-0.14,"mean_delay_days":2.05,"late_sales":82003.69},{"market":"Pacific Asia","order_region":"South Asia","shipping_mode":"Second Class","n_orders":531,"late_orders":446,"raw_late_pct":83.99,"eb_late_pct":83.85,"ci_low_pct":80.48,"ci_high_pct":86.73,"shrinkage_pp":-0.14,"mean_delay_days":2.23,"late_sales":80281.52},{"market":"LATAM","order_region":"Caribbean","shipping_mode":"Second Class","n_orders":542,"late_orders":434,"raw_late_pct":80.07,"eb_late_pct":79.95,"ci_low_pct":76.38,"ci_high_pct":83.11,"shrinkage_pp":-0.12,"mean_delay_days":2.01,"late_sales":79676.65},{"market":"USCA","order_region":"East of USA","shipping_mode":"Standard Class","n_orders":1077,"late_orders":420,"raw_late_pct":39,"eb_late_pct":39.05,"ci_low_pct":36.18,"ci_high_pct":41.99,"shrinkage_pp":0.05,"mean_delay_days":0.02,"late_sales":73622.22},{"market":"Pacific Asia","order_region":"West Asia","shipping_mode":"Standard Class","n_orders":942,"late_orders":399,"raw_late_pct":42.36,"eb_late_pct":42.4,"ci_low_pct":39.29,"ci_high_pct":45.58,"shrinkage_pp":0.05,"mean_delay_days":0.1,"late_sales":72147.61},{"market":"USCA","order_region":"East of USA","shipping_mode":"First Class","n_orders":381,"late_orders":378,"raw_late_pct":99.21,"eb_late_pct":98.89,"ci_low_pct":97.17,"ci_high_pct":99.57,"shrinkage_pp":-0.32,"mean_delay_days":1,"late_sales":64674.09},{"market":"USCA","order_region":"West of USA","shipping_mode":"Second Class","n_orders":480,"late_orders":378,"raw_late_pct":78.75,"eb_late_pct":78.62,"ci_low_pct":74.74,"ci_high_pct":82.05,"shrinkage_pp":-0.13,"mean_delay_days":2.04,"late_sales":64106.63},{"market":"USCA","order_region":"US Center","shipping_mode":"Standard Class","n_orders":933,"late_orders":369,"raw_late_pct":39.55,"eb_late_pct":39.61,"ci_low_pct":36.52,"ci_high_pct":42.78,"shrinkage_pp":0.06,"mean_delay_days":0.08,"late_sales":61864.94},{"market":"Europe","order_region":"Western Europe","shipping_mode":"Same Day","n_orders":556,"late_orders":300,"raw_late_pct":53.96,"eb_late_pct":53.98,"ci_low_pct":49.83,"ci_high_pct":58.07,"shrinkage_pp":0.02,"mean_delay_days":0.54,"late_sales":59547.62},{"market":"USCA","order_region":"US Center","shipping_mode":"First Class","n_orders":352,"late_orders":352,"raw_late_pct":100,"eb_late_pct":99.65,"ci_low_pct":98,"ci_high_pct":99.94,"shrinkage_pp":-0.35,"mean_delay_days":1,"late_sales":58342.61},{"market":"USCA","order_region":"East of USA","shipping_mode":"Second Class","n_orders":387,"late_orders":307,"raw_late_pct":79.33,"eb_late_pct":79.17,"ci_low_pct":74.85,"ci_high_pct":82.91,"shrinkage_pp":-0.16,"mean_delay_days":1.93,"late_sales":55114.77},{"market":"USCA","order_region":"West of USA","shipping_mode":"First Class","n_orders":331,"late_orders":328,"raw_late_pct":99.09,"eb_late_pct":98.73,"ci_low_pct":96.76,"ci_high_pct":99.51,"shrinkage_pp":-0.36,"mean_delay_days":1,"late_sales":54068.22},{"market":"Pacific Asia","order_region":"West Asia","shipping_mode":"First Class","n_orders":321,"late_orders":320,"raw_late_pct":99.69,"eb_late_pct":99.31,"ci_low_pct":97.47,"ci_high_pct":99.81,"shrinkage_pp":-0.38,"mean_delay_days":1,"late_sales":53497.23},{"market":"USCA","order_region":"US Center","shipping_mode":"Second Class","n_orders":366,"late_orders":278,"raw_late_pct":75.96,"eb_late_pct":75.81,"ci_low_pct":71.18,"ci_high_pct":79.91,"shrinkage_pp":-0.15,"mean_delay_days":1.89,"late_sales":48610.1},{"market":"Europe","order_region":"Eastern Europe","shipping_mode":"Standard Class","n_orders":650,"late_orders":270,"raw_late_pct":41.54,"eb_late_pct":41.61,"ci_low_pct":37.89,"ci_high_pct":45.43,"shrinkage_pp":0.07,"mean_delay_days":0.05,"late_sales":47522.69},{"market":"LATAM","order_region":"Central America","shipping_mode":"Same Day","n_orders":534,"late_orders":243,"raw_late_pct":45.51,"eb_late_pct":45.57,"ci_low_pct":41.4,"ci_high_pct":49.81,"shrinkage_pp":0.07,"mean_delay_days":0.46,"late_sales":46997.64},{"market":"Pacific Asia","order_region":"West Asia","shipping_mode":"Second Class","n_orders":355,"late_orders":281,"raw_late_pct":79.15,"eb_late_pct":78.98,"ci_low_pct":74.45,"ci_high_pct":82.89,"shrinkage_pp":-0.18,"mean_delay_days":1.97,"late_sales":46162.73},{"market":"USCA","order_region":"South of  USA","shipping_mode":"Standard Class","n_orders":607,"late_orders":241,"raw_late_pct":39.7,"eb_late_pct":39.79,"ci_low_pct":35.98,"ci_high_pct":43.73,"shrinkage_pp":0.09,"mean_delay_days":0.05,"late_sales":42017.61},{"market":"Africa","order_region":"West Africa","shipping_mode":"Standard Class","n_orders":659,"late_orders":234,"raw_late_pct":35.51,"eb_late_pct":35.61,"ci_low_pct":32.05,"ci_high_pct":39.33,"shrinkage_pp":0.1,"mean_delay_days":-0.03,"late_sales":41337.56},{"market":"Europe","order_region":"Eastern Europe","shipping_mode":"First Class","n_orders":226,"late_orders":226,"raw_late_pct":100,"eb_late_pct":99.46,"ci_low_pct":96.92,"ci_high_pct":99.91,"shrinkage_pp":-0.54,"mean_delay_days":1,"late_sales":39514.63},{"market":"USCA","order_region":"South of  USA","shipping_mode":"Second Class","n_orders":270,"late_orders":219,"raw_late_pct":81.11,"eb_late_pct":80.86,"ci_low_pct":75.76,"ci_high_pct":85.1,"shrinkage_pp":-0.25,"mean_delay_days":2.15,"late_sales":37314.81},{"market":"USCA","order_region":"South of  USA","shipping_mode":"First Class","n_orders":203,"late_orders":200,"raw_late_pct":98.52,"eb_late_pct":97.94,"ci_low_pct":94.78,"ci_high_pct":99.2,"shrinkage_pp":-0.58,"mean_delay_days":1,"late_sales":36035.97},{"market":"Africa","order_region":"North Africa","shipping_mode":"Standard Class","n_orders":532,"late_orders":198,"raw_late_pct":37.22,"eb_late_pct":37.33,"ci_low_pct":33.33,"ci_high_pct":41.51,"shrinkage_pp":0.11,"mean_delay_days":-0.03,"late_sales":34662.94},{"market":"Africa","order_region":"North Africa","shipping_mode":"First Class","n_orders":192,"late_orders":192,"raw_late_pct":100,"eb_late_pct":99.36,"ci_low_pct":96.39,"ci_high_pct":99.89,"shrinkage_pp":-0.64,"mean_delay_days":1,"late_sales":34172.19},{"market":"LATAM","order_region":"South America","shipping_mode":"Same Day","n_orders":367,"late_orders":184,"raw_late_pct":50.14,"eb_late_pct":50.2,"ci_low_pct":45.12,"ci_high_pct":55.27,"shrinkage_pp":0.06,"mean_delay_days":0.51,"late_sales":33503.65},{"market":"Europe","order_region":"Eastern Europe","shipping_mode":"Second Class","n_orders":227,"late_orders":182,"raw_late_pct":80.18,"eb_late_pct":79.89,"ci_low_pct":74.21,"ci_high_pct":84.58,"shrinkage_pp":-0.29,"mean_delay_days":1.9,"late_sales":30478.55},{"market":"Africa","order_region":"West Africa","shipping_mode":"First Class","n_orders":161,"late_orders":161,"raw_late_pct":100,"eb_late_pct":99.24,"ci_low_pct":95.73,"ci_high_pct":99.87,"shrinkage_pp":-0.76,"mean_delay_days":1,"late_sales":28946},{"market":"Africa","order_region":"West Africa","shipping_mode":"Second Class","n_orders":198,"late_orders":143,"raw_late_pct":72.22,"eb_late_pct":72.01,"ci_low_pct":65.41,"ci_high_pct":77.78,"shrinkage_pp":-0.21,"mean_delay_days":1.85,"late_sales":25329.13},{"market":"Africa","order_region":"East Africa","shipping_mode":"Standard Class","n_orders":283,"late_orders":119,"raw_late_pct":42.05,"eb_late_pct":42.21,"ci_low_pct":36.61,"ci_high_pct":48.02,"shrinkage_pp":0.16,"mean_delay_days":0.13,"late_sales":22468.66},{"market":"Africa","order_region":"North Africa","shipping_mode":"Second Class","n_orders":163,"late_orders":127,"raw_late_pct":77.91,"eb_late_pct":77.56,"ci_low_pct":70.59,"ci_high_pct":83.27,"shrinkage_pp":-0.36,"mean_delay_days":1.93,"late_sales":21839.46},{"market":"Europe","order_region":"Southern Europe","shipping_mode":"Same Day","n_orders":206,"late_orders":111,"raw_late_pct":53.88,"eb_late_pct":53.94,"ci_low_pct":47.15,"ci_high_pct":60.58,"shrinkage_pp":0.05,"mean_delay_days":0.56,"late_sales":21025.48},{"market":"Africa","order_region":"Central Africa","shipping_mode":"Standard Class","n_orders":283,"late_orders":122,"raw_late_pct":43.11,"eb_late_pct":43.26,"ci_low_pct":37.63,"ci_high_pct":49.07,"shrinkage_pp":0.15,"mean_delay_days":0.1,"late_sales":20480.76},{"market":"Europe","order_region":"Northern Europe","shipping_mode":"Same Day","n_orders":230,"late_orders":107,"raw_late_pct":46.52,"eb_late_pct":46.66,"ci_low_pct":40.35,"ci_high_pct":53.09,"shrinkage_pp":0.14,"mean_delay_days":0.48,"late_sales":19746.37},{"market":"Africa","order_region":"East Africa","shipping_mode":"First Class","n_orders":99,"late_orders":99,"raw_late_pct":100,"eb_late_pct":98.78,"ci_low_pct":93.25,"ci_high_pct":99.79,"shrinkage_pp":-1.22,"mean_delay_days":1,"late_sales":18602.84},{"market":"Pacific Asia","order_region":"Oceania","shipping_mode":"Same Day","n_orders":232,"late_orders":97,"raw_late_pct":41.81,"eb_late_pct":42.01,"ci_low_pct":35.86,"ci_high_pct":48.42,"shrinkage_pp":0.2,"mean_delay_days":0.43,"late_sales":16413.95},{"market":"Africa","order_region":"Southern Africa","shipping_mode":"Standard Class","n_orders":241,"late_orders":91,"raw_late_pct":37.76,"eb_late_pct":38,"ci_low_pct":32.12,"ci_high_pct":44.25,"shrinkage_pp":0.24,"mean_delay_days":-0.06,"late_sales":15933.3},{"market":"Pacific Asia","order_region":"South Asia","shipping_mode":"Same Day","n_orders":144,"late_orders":87,"raw_late_pct":60.42,"eb_late_pct":60.36,"ci_low_pct":52.25,"ci_high_pct":67.94,"shrinkage_pp":-0.05,"mean_delay_days":0.6,"late_sales":14863.18},{"market":"Africa","order_region":"East Africa","shipping_mode":"Second Class","n_orders":85,"late_orders":76,"raw_late_pct":89.41,"eb_late_pct":88.35,"ci_low_pct":79.81,"ci_high_pct":93.57,"shrinkage_pp":-1.06,"mean_delay_days":1.84,"late_sales":14717.3},{"market":"Pacific Asia","order_region":"Eastern Asia","shipping_mode":"Same Day","n_orders":147,"late_orders":74,"raw_late_pct":50.34,"eb_late_pct":50.49,"ci_low_pct":42.54,"ci_high_pct":58.41,"shrinkage_pp":0.15,"mean_delay_days":0.52,"late_sales":13166.69},{"market":"LATAM","order_region":"Caribbean","shipping_mode":"Same Day","n_orders":150,"late_orders":71,"raw_late_pct":47.33,"eb_late_pct":47.53,"ci_low_pct":39.75,"ci_high_pct":55.44,"shrinkage_pp":0.2,"mean_delay_days":0.47,"late_sales":13001.86},{"market":"Africa","order_region":"Central Africa","shipping_mode":"First Class","n_orders":83,"late_orders":81,"raw_late_pct":97.59,"eb_late_pct":96.23,"ci_low_pct":89.37,"ci_high_pct":98.72,"shrinkage_pp":-1.36,"mean_delay_days":1,"late_sales":12488.54},{"market":"Africa","order_region":"Central Africa","shipping_mode":"Second Class","n_orders":99,"late_orders":74,"raw_late_pct":74.75,"eb_late_pct":74.26,"ci_low_pct":64.92,"ci_high_pct":81.81,"shrinkage_pp":-0.49,"mean_delay_days":1.87,"late_sales":12459.58},{"market":"Pacific Asia","order_region":"Southeast Asia","shipping_mode":"Same Day","n_orders":152,"late_orders":63,"raw_late_pct":41.45,"eb_late_pct":41.76,"ci_low_pct":34.25,"ci_high_pct":49.66,"shrinkage_pp":0.31,"mean_delay_days":0.41,"late_sales":12284.51},{"market":"Africa","order_region":"Southern Africa","shipping_mode":"First Class","n_orders":78,"late_orders":78,"raw_late_pct":100,"eb_late_pct":98.46,"ci_low_pct":91.6,"ci_high_pct":99.74,"shrinkage_pp":-1.54,"mean_delay_days":1,"late_sales":12260.78},{"market":"USCA","order_region":"West of USA","shipping_mode":"Same Day","n_orders":130,"late_orders":64,"raw_late_pct":49.23,"eb_late_pct":49.42,"ci_low_pct":41.02,"ci_high_pct":57.85,"shrinkage_pp":0.19,"mean_delay_days":0.5,"late_sales":9932.06},{"market":"USCA","order_region":"East of USA","shipping_mode":"Same Day","n_orders":129,"late_orders":58,"raw_late_pct":44.96,"eb_late_pct":45.25,"ci_low_pct":36.97,"ci_high_pct":53.8,"shrinkage_pp":0.29,"mean_delay_days":0.45,"late_sales":9570.07},{"market":"USCA","order_region":"US Center","shipping_mode":"Same Day","n_orders":112,"late_orders":53,"raw_late_pct":47.32,"eb_late_pct":47.59,"ci_low_pct":38.64,"ci_high_pct":56.7,"shrinkage_pp":0.27,"mean_delay_days":0.47,"late_sales":8857.85},{"market":"Pacific Asia","order_region":"Central Asia","shipping_mode":"Standard Class","n_orders":92,"late_orders":43,"raw_late_pct":46.74,"eb_late_pct":47.08,"ci_low_pct":37.29,"ci_high_pct":57.1,"shrinkage_pp":0.34,"mean_delay_days":0.15,"late_sales":8393.1},{"market":"USCA","order_region":"Canada","shipping_mode":"First Class","n_orders":56,"late_orders":56,"raw_late_pct":100,"eb_late_pct":97.89,"ci_low_pct":88.7,"ci_high_pct":99.64,"shrinkage_pp":-2.11,"mean_delay_days":1,"late_sales":8296.99},{"market":"USCA","order_region":"Canada","shipping_mode":"Standard Class","n_orders":158,"late_orders":45,"raw_late_pct":28.48,"eb_late_pct":29.02,"ci_low_pct":22.53,"ci_high_pct":36.49,"shrinkage_pp":0.54,"mean_delay_days":-0.34,"late_sales":8055.08},{"market":"Pacific Asia","order_region":"West Asia","shipping_mode":"Same Day","n_orders":90,"late_orders":43,"raw_late_pct":47.78,"eb_late_pct":48.09,"ci_low_pct":38.15,"ci_high_pct":58.19,"shrinkage_pp":0.32,"mean_delay_days":0.48,"late_sales":7275.27},{"market":"Africa","order_region":"North Africa","shipping_mode":"Same Day","n_orders":48,"late_orders":34,"raw_late_pct":70.83,"eb_late_pct":70.08,"ci_low_pct":56.25,"ci_high_pct":81.01,"shrinkage_pp":-0.76,"mean_delay_days":0.71,"late_sales":6394.26},{"market":"USCA","order_region":"South of  USA","shipping_mode":"Same Day","n_orders":75,"late_orders":38,"raw_late_pct":50.67,"eb_late_pct":50.93,"ci_low_pct":39.97,"ci_high_pct":61.81,"shrinkage_pp":0.27,"mean_delay_days":0.51,"late_sales":6053.34},{"market":"Pacific Asia","order_region":"Central Asia","shipping_mode":"Second Class","n_orders":38,"late_orders":37,"raw_late_pct":97.37,"eb_late_pct":94.52,"ci_low_pct":81.79,"ci_high_pct":98.51,"shrinkage_pp":-2.85,"mean_delay_days":2.29,"late_sales":5904.35},{"market":"USCA","order_region":"Canada","shipping_mode":"Second Class","n_orders":36,"late_orders":33,"raw_late_pct":91.67,"eb_late_pct":89.1,"ci_low_pct":74.9,"ci_high_pct":95.73,"shrinkage_pp":-2.56,"mean_delay_days":2.39,"late_sales":5882.32},{"market":"Africa","order_region":"West Africa","shipping_mode":"Same Day","n_orders":78,"late_orders":24,"raw_late_pct":30.77,"eb_late_pct":31.75,"ci_low_pct":22.56,"ci_high_pct":42.62,"shrinkage_pp":0.98,"mean_delay_days":0.31,"late_sales":4410.53},{"market":"Africa","order_region":"Southern Africa","shipping_mode":"Second Class","n_orders":29,"late_orders":24,"raw_late_pct":82.76,"eb_late_pct":80.45,"ci_low_pct":63.19,"ci_high_pct":90.8,"shrinkage_pp":-2.3,"mean_delay_days":2.07,"late_sales":4178.52},{"market":"Pacific Asia","order_region":"Central Asia","shipping_mode":"First Class","n_orders":23,"late_orders":23,"raw_late_pct":100,"eb_late_pct":95.21,"ci_low_pct":76.63,"ci_high_pct":99.18,"shrinkage_pp":-4.79,"mean_delay_days":1,"late_sales":4099.44},{"market":"Africa","order_region":"Southern Africa","shipping_mode":"Same Day","n_orders":22,"late_orders":16,"raw_late_pct":72.73,"eb_late_pct":70.96,"ci_low_pct":50.72,"ci_high_pct":85.3,"shrinkage_pp":-1.77,"mean_delay_days":0.73,"late_sales":3729.67},{"market":"Africa","order_region":"East Africa","shipping_mode":"Same Day","n_orders":48,"late_orders":24,"raw_late_pct":50,"eb_late_pct":50.45,"ci_low_pct":37.02,"ci_high_pct":63.81,"shrinkage_pp":0.45,"mean_delay_days":0.5,"late_sales":3714.52},{"market":"Europe","order_region":"Eastern Europe","shipping_mode":"Same Day","n_orders":50,"late_orders":16,"raw_late_pct":32,"eb_late_pct":33.43,"ci_low_pct":22.1,"ci_high_pct":47.06,"shrinkage_pp":1.43,"mean_delay_days":0.32,"late_sales":2679.79},{"market":"Pacific Asia","order_region":"Central Asia","shipping_mode":"Same Day","n_orders":33,"late_orders":9,"raw_late_pct":27.27,"eb_late_pct":29.77,"ci_low_pct":17.17,"ci_high_pct":46.42,"shrinkage_pp":2.5,"mean_delay_days":0.27,"late_sales":1519.89},{"market":"Africa","order_region":"Central Africa","shipping_mode":"Same Day","n_orders":33,"late_orders":4,"raw_late_pct":12.12,"eb_late_pct":15.86,"ci_low_pct":7.15,"ci_high_pct":31.56,"shrinkage_pp":3.74,"mean_delay_days":0.12,"late_sales":759.86},{"market":"USCA","order_region":"Canada","shipping_mode":"Same Day","n_orders":10,"late_orders":1,"raw_late_pct":10,"eb_late_pct":20.86,"ci_low_pct":6.45,"ci_high_pct":50.18,"shrinkage_pp":10.86,"mean_delay_days":0.1,"late_sales":129.99}],"skus":[{"sku_id":365,"product_name":"Perfect Fitness Perfect Rip Deck","category_name":"Cleats","department_name":"Apparel","n_orders":9772,"late_orders":5624,"canceled_orders":232,"raw_late_pct":57.55,"eb_late_pct":57.56,"ci_low_pct":56.6,"ci_high_pct":58.52,"shrinkage_pp":0.01,"shrinkage_weight":0.955,"mean_delay_days":0.6,"total_sales":1834974.17,"late_sales":1033747.71,"total_profit":206847.13},{"sku_id":957,"product_name":"Diamondback Women's Serene Classic Comfort Bi","category_name":"Camping & Hiking","department_name":"Fan Shop","n_orders":4915,"late_orders":3013,"canceled_orders":30,"raw_late_pct":61.3,"eb_late_pct":61,"ci_low_pct":59.69,"ci_high_pct":62.3,"shrinkage_pp":-0.3,"shrinkage_weight":0.915,"mean_delay_days":0.67,"total_sales":1474401.75,"late_sales":903839.77,"total_profit":151710.32},{"sku_id":191,"product_name":"Nike Men's Free 5.0+ Running Shoe","category_name":"Cardio Equipment","department_name":"Footwear","n_orders":4929,"late_orders":2800,"canceled_orders":127,"raw_late_pct":56.81,"eb_late_pct":56.89,"ci_low_pct":55.56,"ci_high_pct":58.2,"shrinkage_pp":0.08,"shrinkage_weight":0.915,"mean_delay_days":0.56,"total_sales":1552244.76,"late_sales":864613.53,"total_profit":171209.68},{"sku_id":502,"product_name":"Nike Men's Dri-FIT Victory Golf Polo","category_name":"Women's Apparel","department_name":"Golf","n_orders":8377,"late_orders":4795,"canceled_orders":202,"raw_late_pct":57.24,"eb_late_pct":57.27,"ci_low_pct":56.23,"ci_high_pct":58.29,"shrinkage_pp":0.03,"shrinkage_weight":0.948,"mean_delay_days":0.59,"total_sales":1312600,"late_sales":737350,"total_profit":153053.17},{"sku_id":403,"product_name":"Nike Men's CJ Elite 2 TD Football Cleat","category_name":"Men's Footwear","department_name":"Apparel","n_orders":8270,"late_orders":4903,"canceled_orders":63,"raw_late_pct":59.29,"eb_late_pct":59.21,"ci_low_pct":58.17,"ci_high_pct":60.23,"shrinkage_pp":-0.08,"shrinkage_weight":0.948,"mean_delay_days":0.62,"total_sales":1075017.35,"late_sales":637341,"total_profit":112419},{"sku_id":1004,"product_name":"Field & Stream Sportsman 16 Gun Fire Safe","category_name":"Fishing","department_name":"Fan Shop","n_orders":2240,"late_orders":1387,"canceled_orders":17,"raw_late_pct":61.92,"eb_late_pct":61.21,"ci_low_pct":59.36,"ci_high_pct":63.04,"shrinkage_pp":-0.71,"shrinkage_weight":0.831,"mean_delay_days":0.69,"total_sales":895955.22,"late_sales":554772.28,"total_profit":99076.22},{"sku_id":1073,"product_name":"Pelican Sunstream 100 Kayak","category_name":"Water Sports","department_name":"Fan Shop","n_orders":3815,"late_orders":2019,"canceled_orders":169,"raw_late_pct":52.92,"eb_late_pct":53.44,"ci_low_pct":51.94,"ci_high_pct":54.93,"shrinkage_pp":0.52,"shrinkage_weight":0.893,"mean_delay_days":0.52,"total_sales":762961.87,"late_sales":403779.82,"total_profit":83204.1},{"sku_id":627,"product_name":"Under Armour Girls' Toddler Spine Surge Runni","category_name":"Shop By Sport","department_name":"Golf","n_orders":4280,"late_orders":2457,"canceled_orders":114,"raw_late_pct":57.41,"eb_late_pct":57.44,"ci_low_pct":56.03,"ci_high_pct":58.84,"shrinkage_pp":0.03,"shrinkage_weight":0.904,"mean_delay_days":0.6,"total_sales":534706.3,"late_sales":301844.52,"total_profit":48337.74},{"sku_id":1351,"product_name":"Dell Laptop","category_name":"Computers","department_name":"Technology","n_orders":194,"late_orders":107,"canceled_orders":1,"raw_late_pct":55.15,"eb_late_pct":56.98,"ci_low_pct":53.14,"ci_high_pct":60.73,"shrinkage_pp":1.82,"shrinkage_weight":0.298,"mean_delay_days":0.55,"total_sales":291000,"late_sales":160500,"total_profit":27226.54},{"sku_id":1349,"product_name":"Web Camera","category_name":"Cameras","department_name":"Technology","n_orders":256,"late_orders":159,"canceled_orders":2,"raw_late_pct":62.11,"eb_late_pct":59.32,"ci_low_pct":55.66,"ci_high_pct":62.87,"shrinkage_pp":-2.79,"shrinkage_weight":0.36,"mean_delay_days":0.62,"total_sales":115722.24,"late_sales":71874.36,"total_profit":14992.91},{"sku_id":1360,"product_name":"Smart watch ","category_name":"Sporting Goods","department_name":"Fitness","n_orders":357,"late_orders":198,"canceled_orders":21,"raw_late_pct":55.46,"eb_late_pct":56.75,"ci_low_pct":53.31,"ci_high_pct":60.11,"shrinkage_pp":1.28,"shrinkage_weight":0.439,"mean_delay_days":0.62,"total_sales":117006.75,"late_sales":64894.5,"total_profit":12518.61},{"sku_id":1353,"product_name":"Porcelain crafts","category_name":"Crafts","department_name":"Apparel","n_orders":193,"late_orders":131,"canceled_orders":1,"raw_late_pct":67.88,"eb_late_pct":60.76,"ci_low_pct":56.95,"ci_high_pct":64.45,"shrinkage_pp":-7.11,"shrinkage_weight":0.297,"mean_delay_days":0.82,"total_sales":89065.64,"late_sales":60453.88,"total_profit":9988.61},{"sku_id":1355,"product_name":"Lawn mower","category_name":"Garden","department_name":"Outdoors","n_orders":185,"late_orders":103,"canceled_orders":3,"raw_late_pct":55.68,"eb_late_pct":57.15,"ci_low_pct":53.28,"ci_high_pct":60.93,"shrinkage_pp":1.48,"shrinkage_weight":0.289,"mean_delay_days":0.59,"total_sales":98527.3,"late_sales":54855.74,"total_profit":12489.86},{"sku_id":1350,"product_name":"Children's heaters","category_name":"Children's Clothing","department_name":"Apparel","n_orders":247,"late_orders":141,"canceled_orders":3,"raw_late_pct":57.09,"eb_late_pct":57.52,"ci_low_pct":53.83,"ci_high_pct":61.12,"shrinkage_pp":0.43,"shrinkage_weight":0.351,"mean_delay_days":0.56,"total_sales":88203.7,"late_sales":50351.1,"total_profit":11003.19},{"sku_id":728,"product_name":"LIJA Women's Eyelet Sleeveless Golf Polo","category_name":"Golf Shoes","department_name":"Outdoors","n_orders":309,"late_orders":175,"canceled_orders":14,"raw_late_pct":56.63,"eb_late_pct":57.3,"ci_low_pct":53.76,"ci_high_pct":60.76,"shrinkage_pp":0.66,"shrinkage_weight":0.404,"mean_delay_days":0.63,"total_sales":61490,"late_sales":35230,"total_profit":6752.33},{"sku_id":1363,"product_name":"Summer dresses","category_name":"Women's Clothing","department_name":"Apparel","n_orders":224,"late_orders":133,"canceled_orders":3,"raw_late_pct":59.38,"eb_late_pct":58.28,"ci_low_pct":54.54,"ci_high_pct":61.94,"shrinkage_pp":-1.09,"shrinkage_weight":0.329,"mean_delay_days":0.7,"total_sales":48343.68,"late_sales":28704.06,"total_profit":7987.73},{"sku_id":1352,"product_name":"Industrial consumer electronics","category_name":"Consumer Electronics","department_name":"Technology","n_orders":180,"late_orders":108,"canceled_orders":0,"raw_late_pct":60,"eb_late_pct":58.39,"ci_low_pct":54.51,"ci_high_pct":62.16,"shrinkage_pp":-1.61,"shrinkage_weight":0.283,"mean_delay_days":0.68,"total_sales":45518.4,"late_sales":27311.04,"total_profit":6374.17},{"sku_id":1358,"product_name":"Rock music","category_name":"Music","department_name":"Discs Shop","n_orders":147,"late_orders":90,"canceled_orders":1,"raw_late_pct":61.22,"eb_late_pct":58.6,"ci_low_pct":54.62,"ci_high_pct":62.47,"shrinkage_pp":-2.63,"shrinkage_weight":0.244,"mean_delay_days":0.61,"total_sales":38315.55,"late_sales":23458.5,"total_profit":6919.54},{"sku_id":1356,"product_name":"First aid kit","category_name":"Health and Beauty","department_name":"Health and Beauty","n_orders":113,"late_orders":74,"canceled_orders":1,"raw_late_pct":65.49,"eb_late_pct":59.29,"ci_low_pct":55.2,"ci_high_pct":63.25,"shrinkage_pp":-6.2,"shrinkage_weight":0.199,"mean_delay_days":0.64,"total_sales":33113.52,"late_sales":21684.96,"total_profit":975.21},{"sku_id":771,"product_name":"Clicgear Rovic Cooler Bag","category_name":"Golf Gloves","department_name":"Outdoors","n_orders":284,"late_orders":164,"canceled_orders":9,"raw_late_pct":57.75,"eb_late_pct":57.75,"ci_low_pct":54.16,"ci_high_pct":61.26,"shrinkage_pp":0,"shrinkage_weight":0.384,"mean_delay_days":0.63,"total_sales":34671.33,"late_sales":19235.19,"total_profit":2962.96},{"sku_id":1354,"product_name":"DVDs ","category_name":"DVDs","department_name":"Discs Shop","n_orders":182,"late_orders":99,"canceled_orders":2,"raw_late_pct":54.4,"eb_late_pct":56.79,"ci_low_pct":52.92,"ci_high_pct":60.59,"shrinkage_pp":2.4,"shrinkage_weight":0.285,"mean_delay_days":0.47,"total_sales":29917.16,"late_sales":16273.62,"total_profit":3184.66},{"sku_id":565,"product_name":"adidas Youth Germany Black/Red Away Match Soc","category_name":"Girls' Apparel","department_name":"Golf","n_orders":131,"late_orders":69,"canceled_orders":5,"raw_late_pct":52.67,"eb_late_pct":56.62,"ci_low_pct":52.57,"ci_high_pct":60.57,"shrinkage_pp":3.94,"shrinkage_weight":0.223,"mean_delay_days":0.35,"total_sales":31220,"late_sales":15120,"total_profit":3968.2},{"sku_id":44,"product_name":"adidas Men's F10 Messi TRX FG Soccer Cleat","category_name":"Baseball & Softball","department_name":"Fitness","n_orders":131,"late_orders":68,"canceled_orders":4,"raw_late_pct":51.91,"eb_late_pct":56.45,"ci_low_pct":52.4,"ci_high_pct":60.41,"shrinkage_pp":4.54,"shrinkage_weight":0.223,"mean_delay_days":0.6,"total_sales":24955.84,"late_sales":12357.94,"total_profit":3352.8},{"sku_id":724,"product_name":"LIJA Women's Mid-Length Panel Golf Shorts","category_name":"Golf Shoes","department_name":"Outdoors","n_orders":73,"late_orders":41,"canceled_orders":2,"raw_late_pct":56.16,"eb_late_pct":57.53,"ci_low_pct":53.27,"ci_high_pct":61.68,"shrinkage_pp":1.37,"shrinkage_weight":0.138,"mean_delay_days":0.66,"total_sales":22700,"late_sales":12300,"total_profit":2984.71},{"sku_id":778,"product_name":"Bag Boy Beverage Holder","category_name":"Golf Gloves","department_name":"Outdoors","n_orders":279,"late_orders":155,"canceled_orders":11,"raw_late_pct":55.56,"eb_late_pct":56.92,"ci_low_pct":53.31,"ci_high_pct":60.45,"shrinkage_pp":1.36,"shrinkage_weight":0.38,"mean_delay_days":0.56,"total_sales":21116.55,"late_sales":12020.19,"total_profit":3173.78},{"sku_id":823,"product_name":"Titleist Pro V1x High Numbers Personalized Go","category_name":"Electronics","department_name":"Outdoors","n_orders":134,"late_orders":74,"canceled_orders":5,"raw_late_pct":55.22,"eb_late_pct":57.18,"ci_low_pct":53.14,"ci_high_pct":61.11,"shrinkage_pp":1.95,"shrinkage_weight":0.227,"mean_delay_days":0.49,"total_sales":22147.74,"late_sales":11957.7,"total_profit":2522.61},{"sku_id":134,"product_name":"Nike Women's Legend V-Neck T-Shirt","category_name":"Hockey","department_name":"Fitness","n_orders":279,"late_orders":160,"canceled_orders":11,"raw_late_pct":57.35,"eb_late_pct":57.6,"ci_low_pct":53.99,"ci_high_pct":61.12,"shrinkage_pp":0.25,"shrinkage_weight":0.38,"mean_delay_days":0.54,"total_sales":20025,"late_sales":11225,"total_profit":2772.66},{"sku_id":821,"product_name":"Titleist Pro V1 High Numbers Personalized Gol","category_name":"Electronics","department_name":"Outdoors","n_orders":119,"late_orders":70,"canceled_orders":4,"raw_late_pct":58.82,"eb_late_pct":57.97,"ci_low_pct":53.89,"ci_high_pct":61.94,"shrinkage_pp":-0.85,"shrinkage_weight":0.207,"mean_delay_days":0.55,"total_sales":18300.48,"late_sales":10761.93,"total_profit":2162.02},{"sku_id":116,"product_name":"Nike Men's Comfort 2 Slide","category_name":"Tennis & Racquet","department_name":"Fitness","n_orders":132,"late_orders":78,"canceled_orders":2,"raw_late_pct":59.09,"eb_late_pct":58.05,"ci_low_pct":54.02,"ci_high_pct":61.98,"shrinkage_pp":-1.04,"shrinkage_weight":0.224,"mean_delay_days":0.76,"total_sales":18130.97,"late_sales":10572.65,"total_profit":2327.74},{"sku_id":1359,"product_name":"Adult dog supplies","category_name":"Pet Supplies","department_name":"Pet Shop","n_orders":189,"late_orders":125,"canceled_orders":0,"raw_late_pct":66.14,"eb_late_pct":60.21,"ci_low_pct":56.38,"ci_high_pct":63.92,"shrinkage_pp":-5.93,"shrinkage_weight":0.293,"mean_delay_days":0.75,"total_sales":15951.6,"late_sales":10550,"total_profit":1364.54},{"sku_id":646,"product_name":"Merrell Women's Grassbow Sport Hiking Shoe","category_name":"Men's Golf Clubs","department_name":"Outdoors","n_orders":70,"late_orders":36,"canceled_orders":0,"raw_late_pct":51.43,"eb_late_pct":56.91,"ci_low_pct":52.64,"ci_high_pct":61.08,"shrinkage_pp":5.48,"shrinkage_weight":0.133,"mean_delay_days":0.56,"total_sales":20697.93,"late_sales":10198.98,"total_profit":1818.65},{"sku_id":677,"product_name":"TaylorMade White Smoke IN-12 Putter","category_name":"Women's Golf Clubs","department_name":"Outdoors","n_orders":63,"late_orders":34,"canceled_orders":4,"raw_late_pct":53.97,"eb_late_pct":57.29,"ci_low_pct":52.99,"ci_high_pct":61.48,"shrinkage_pp":3.32,"shrinkage_weight":0.121,"mean_delay_days":0.75,"total_sales":19298.07,"late_sales":10198.98,"total_profit":2540.4},{"sku_id":249,"product_name":"Under Armour Women's Micro G Skulpt Running S","category_name":"Boxing & MMA","department_name":"Footwear","n_orders":100,"late_orders":59,"canceled_orders":4,"raw_late_pct":59,"eb_late_pct":57.97,"ci_low_pct":53.83,"ci_high_pct":62.01,"shrinkage_pp":-1.03,"shrinkage_weight":0.18,"mean_delay_days":0.81,"total_sales":17425.49,"late_sales":10059.51,"total_profit":2775.45},{"sku_id":703,"product_name":"Top Flite Women's 2014 XL Hybrid","category_name":"Golf Apparel","department_name":"Outdoors","n_orders":303,"late_orders":165,"canceled_orders":7,"raw_late_pct":54.46,"eb_late_pct":56.43,"ci_low_pct":52.88,"ci_high_pct":59.92,"shrinkage_pp":1.98,"shrinkage_weight":0.399,"mean_delay_days":0.55,"total_sales":17731.13,"late_sales":9815.09,"total_profit":1830.4},{"sku_id":135,"product_name":"Nike Dri-FIT Crew Sock 6 Pack","category_name":"Hockey","department_name":"Fitness","n_orders":308,"late_orders":155,"canceled_orders":13,"raw_late_pct":50.32,"eb_late_pct":54.76,"ci_low_pct":51.21,"ci_high_pct":58.26,"shrinkage_pp":4.43,"shrinkage_weight":0.403,"mean_delay_days":0.43,"total_sales":19426,"late_sales":9746,"total_profit":2145.49},{"sku_id":777,"product_name":"Bag Boy M330 Push Cart","category_name":"Golf Gloves","department_name":"Outdoors","n_orders":69,"late_orders":38,"canceled_orders":3,"raw_late_pct":55.07,"eb_late_pct":57.4,"ci_low_pct":53.12,"ci_high_pct":61.56,"shrinkage_pp":2.33,"shrinkage_weight":0.131,"mean_delay_days":0.49,"total_sales":16637.92,"late_sales":9198.85,"total_profit":2969.11},{"sku_id":822,"product_name":"Titleist Pro V1x High Numbers Golf Balls","category_name":"Electronics","department_name":"Outdoors","n_orders":106,"late_orders":58,"canceled_orders":3,"raw_late_pct":54.72,"eb_late_pct":57.18,"ci_low_pct":53.05,"ci_high_pct":61.21,"shrinkage_pp":2.46,"shrinkage_weight":0.189,"mean_delay_days":0.51,"total_sales":16172.63,"late_sales":8686.19,"total_profit":1486.34},{"sku_id":1357,"product_name":"Men's gala suit","category_name":"Men's Clothing","department_name":"Apparel","n_orders":70,"late_orders":41,"canceled_orders":0,"raw_late_pct":58.57,"eb_late_pct":57.86,"ci_low_pct":53.59,"ci_high_pct":62.01,"shrinkage_pp":-0.71,"shrinkage_weight":0.133,"mean_delay_days":0.56,"total_sales":14759.5,"late_sales":8644.85,"total_profit":-145.23},{"sku_id":572,"product_name":"TYR Boys' Team Digi Jammer","category_name":"Girls' Apparel","department_name":"Golf","n_orders":122,"late_orders":74,"canceled_orders":3,"raw_late_pct":60.66,"eb_late_pct":58.36,"ci_low_pct":54.3,"ci_high_pct":62.32,"shrinkage_pp":-2.29,"shrinkage_weight":0.211,"mean_delay_days":0.66,"total_sales":14956.26,"late_sales":8557.86,"total_profit":2636.97},{"sku_id":773,"product_name":"Titleist Small Wheeled Travel Cover","category_name":"Golf Gloves","department_name":"Outdoors","n_orders":54,"late_orders":34,"canceled_orders":3,"raw_late_pct":62.96,"eb_late_pct":58.3,"ci_low_pct":53.97,"ci_high_pct":62.51,"shrinkage_pp":-4.66,"shrinkage_weight":0.106,"mean_delay_days":0.76,"total_sales":13499.46,"late_sales":8499.66,"total_profit":1011.65},{"sku_id":282,"product_name":"Under Armour Women's Ignite PIP VI Slide","category_name":"Electronics","department_name":"Footwear","n_orders":131,"late_orders":84,"canceled_orders":2,"raw_late_pct":64.12,"eb_late_pct":59.17,"ci_low_pct":55.14,"ci_high_pct":63.08,"shrinkage_pp":-4.95,"shrinkage_weight":0.223,"mean_delay_days":0.69,"total_sales":12923.96,"late_sales":8061.48,"total_profit":2026.88},{"sku_id":564,"product_name":"Nike Men's Deutschland Weltmeister Winners Bl","category_name":"Girls' Apparel","department_name":"Golf","n_orders":129,"late_orders":89,"canceled_orders":1,"raw_late_pct":68.99,"eb_late_pct":60.23,"ci_low_pct":56.2,"ci_high_pct":64.12,"shrinkage_pp":-8.76,"shrinkage_weight":0.221,"mean_delay_days":0.87,"total_sales":12060,"late_sales":8040,"total_profit":1507.97},{"sku_id":276,"product_name":"Under Armour Women's Ignite Slide","category_name":"Electronics","department_name":"Footwear","n_orders":126,"late_orders":78,"canceled_orders":1,"raw_late_pct":61.9,"eb_late_pct":58.65,"ci_low_pct":54.6,"ci_high_pct":62.58,"shrinkage_pp":-3.26,"shrinkage_weight":0.216,"mean_delay_days":0.53,"total_sales":12732.02,"late_sales":7805.56,"total_profit":1450.48},{"sku_id":278,"product_name":"Under Armour Men's Compression EV SL Slide","category_name":"Electronics","department_name":"Footwear","n_orders":108,"late_orders":57,"canceled_orders":3,"raw_late_pct":52.78,"eb_late_pct":56.8,"ci_low_pct":52.67,"ci_high_pct":60.83,"shrinkage_pp":4.02,"shrinkage_weight":0.191,"mean_delay_days":0.42,"total_sales":14936.68,"late_sales":7783.27,"total_profit":1954.49},{"sku_id":730,"product_name":"LIJA Women's Argyle Golf Polo","category_name":"Golf Shoes","department_name":"Outdoors","n_orders":66,"late_orders":33,"canceled_orders":2,"raw_late_pct":50,"eb_late_pct":56.77,"ci_low_pct":52.48,"ci_high_pct":60.96,"shrinkage_pp":6.77,"shrinkage_weight":0.126,"mean_delay_days":0.3,"total_sales":15600,"late_sales":7760,"total_profit":1512.43},{"sku_id":235,"product_name":"Under Armour Hustle Storm Medium Duffle Bag","category_name":"Fitness Accessories","department_name":"Footwear","n_orders":116,"late_orders":74,"canceled_orders":2,"raw_late_pct":63.79,"eb_late_pct":58.98,"ci_low_pct":54.89,"ci_high_pct":62.94,"shrinkage_pp":-4.82,"shrinkage_weight":0.203,"mean_delay_days":0.83,"total_sales":12246.5,"late_sales":7627.82,"total_profit":1843.29},{"sku_id":671,"product_name":"Cleveland Golf Collegiate My Custom Wedge 588","category_name":"Women's Golf Clubs","department_name":"Outdoors","n_orders":65,"late_orders":36,"canceled_orders":3,"raw_late_pct":55.38,"eb_late_pct":57.45,"ci_low_pct":53.16,"ci_high_pct":61.64,"shrinkage_pp":2.07,"shrinkage_weight":0.125,"mean_delay_days":0.46,"total_sales":13649.35,"late_sales":7559.64,"total_profit":955.1},{"sku_id":835,"product_name":"Bridgestone e6 Straight Distance NFL Carolina","category_name":"Electronics","department_name":"Outdoors","n_orders":124,"late_orders":73,"canceled_orders":2,"raw_late_pct":58.87,"eb_late_pct":57.99,"ci_low_pct":53.93,"ci_high_pct":61.95,"shrinkage_pp":-0.88,"shrinkage_weight":0.214,"mean_delay_days":0.63,"total_sales":12732.02,"late_sales":7517.65,"total_profit":878.73},{"sku_id":885,"product_name":"Team Golf St. Louis Cardinals Putter Grip","category_name":"Accessories","department_name":"Outdoors","n_orders":136,"late_orders":89,"canceled_orders":2,"raw_late_pct":65.44,"eb_late_pct":59.52,"ci_low_pct":55.51,"ci_high_pct":63.4,"shrinkage_pp":-5.92,"shrinkage_weight":0.23,"mean_delay_days":0.7,"total_sales":10795.68,"late_sales":7422.03,"total_profit":1598.88},{"sku_id":793,"product_name":"Hirzl Women's Hybrid Golf Glove","category_name":"Golf Balls","department_name":"Outdoors","n_orders":311,"late_orders":165,"canceled_orders":17,"raw_late_pct":53.05,"eb_late_pct":55.85,"ci_low_pct":52.31,"ci_high_pct":59.33,"shrinkage_pp":2.79,"shrinkage_weight":0.405,"mean_delay_days":0.56,"total_sales":13311.12,"late_sales":7420.05,"total_profit":1193.24},{"sku_id":818,"product_name":"Titleist Pro V1x Golf Balls","category_name":"Electronics","department_name":"Outdoors","n_orders":107,"late_orders":53,"canceled_orders":2,"raw_late_pct":49.53,"eb_late_pct":56.19,"ci_low_pct":52.06,"ci_high_pct":60.24,"shrinkage_pp":6.66,"shrinkage_weight":0.19,"mean_delay_days":0.27,"total_sales":15980.67,"late_sales":7390.46,"total_profit":1251.35},{"sku_id":828,"product_name":"Bridgestone e6 Straight Distance NFL San Dieg","category_name":"Electronics","department_name":"Outdoors","n_orders":114,"late_orders":71,"canceled_orders":2,"raw_late_pct":62.28,"eb_late_pct":58.66,"ci_low_pct":54.56,"ci_high_pct":62.63,"shrinkage_pp":-3.63,"shrinkage_weight":0.2,"mean_delay_days":0.61,"total_sales":11516.4,"late_sales":7325.71,"total_profit":1318.92},{"sku_id":1362,"product_name":"Fighting video games","category_name":"Video Games","department_name":"Discs Shop","n_orders":292,"late_orders":182,"canceled_orders":3,"raw_late_pct":62.33,"eb_late_pct":59.54,"ci_low_pct":55.98,"ci_high_pct":63,"shrinkage_pp":-2.79,"shrinkage_weight":0.39,"mean_delay_days":0.66,"total_sales":11607,"late_sales":7234.5,"total_profit":1172.53},{"sku_id":743,"product_name":"Ogio Race Golf Shoes","category_name":"Golf Bags & Carts","department_name":"Outdoors","n_orders":61,"late_orders":42,"canceled_orders":0,"raw_late_pct":68.85,"eb_late_pct":59.06,"ci_low_pct":54.76,"ci_high_pct":63.22,"shrinkage_pp":-9.79,"shrinkage_weight":0.118,"mean_delay_days":0.77,"total_sales":10369.39,"late_sales":7139.58,"total_profit":1810.07},{"sku_id":37,"product_name":"adidas Kids' F5 Messi FG Soccer Cleat","category_name":"Baseball & Softball","department_name":"Fitness","n_orders":107,"late_orders":70,"canceled_orders":3,"raw_late_pct":65.42,"eb_late_pct":59.21,"ci_low_pct":55.09,"ci_high_pct":63.2,"shrinkage_pp":-6.21,"shrinkage_weight":0.19,"mean_delay_days":0.78,"total_sales":11161.81,"late_sales":6998,"total_profit":588.65},{"sku_id":792,"product_name":"Hirzl Men's Hybrid Golf Glove","category_name":"Golf Balls","department_name":"Outdoors","n_orders":282,"late_orders":152,"canceled_orders":11,"raw_late_pct":53.9,"eb_late_pct":56.28,"ci_low_pct":52.67,"ci_high_pct":59.82,"shrinkage_pp":2.38,"shrinkage_weight":0.382,"mean_delay_days":0.45,"total_sales":12951.36,"late_sales":6745.5,"total_profit":1175.66},{"sku_id":786,"product_name":"TaylorMade 2014 Purelite Stand Bag","category_name":"Golf Gloves","department_name":"Outdoors","n_orders":65,"late_orders":37,"canceled_orders":2,"raw_late_pct":56.92,"eb_late_pct":57.65,"ci_low_pct":53.36,"ci_high_pct":61.82,"shrinkage_pp":0.72,"shrinkage_weight":0.125,"mean_delay_days":0.72,"total_sales":11699.35,"late_sales":6659.63,"total_profit":730.18},{"sku_id":797,"product_name":"Hirzl Women's Soffft Flex Golf Glove","category_name":"Golf Balls","department_name":"Outdoors","n_orders":183,"late_orders":117,"canceled_orders":6,"raw_late_pct":63.93,"eb_late_pct":59.52,"ci_low_pct":55.66,"ci_high_pct":63.26,"shrinkage_pp":-4.41,"shrinkage_weight":0.286,"mean_delay_days":0.81,"total_sales":10128.37,"late_sales":6512.38,"total_profit":892.19},{"sku_id":977,"product_name":"ENO Atlas Hammock Straps","category_name":"Hunting & Shooting","department_name":"Fan Shop","n_orders":122,"late_orders":70,"canceled_orders":1,"raw_late_pct":57.38,"eb_late_pct":57.67,"ci_low_pct":53.6,"ci_high_pct":61.64,"shrinkage_pp":0.29,"shrinkage_weight":0.211,"mean_delay_days":0.62,"total_sales":11636.12,"late_sales":6447.85,"total_profit":1032.53},{"sku_id":825,"product_name":"Bridgestone e6 Straight Distance NFL Tennesse","category_name":"Electronics","department_name":"Outdoors","n_orders":111,"late_orders":67,"canceled_orders":4,"raw_late_pct":60.36,"eb_late_pct":58.26,"ci_low_pct":54.15,"ci_high_pct":62.26,"shrinkage_pp":-2.1,"shrinkage_weight":0.196,"mean_delay_days":0.74,"total_sales":11164.51,"late_sales":6398,"total_profit":946.81},{"sku_id":768,"product_name":"Titleist Club Glove Travel Cover","category_name":"Golf Gloves","department_name":"Outdoors","n_orders":34,"late_orders":21,"canceled_orders":1,"raw_late_pct":61.76,"eb_late_pct":58.03,"ci_low_pct":53.61,"ci_high_pct":62.32,"shrinkage_pp":-3.74,"shrinkage_weight":0.069,"mean_delay_days":0.91,"total_sales":10199.66,"late_sales":6299.79,"total_profit":1312.27},{"sku_id":172,"product_name":"Nike Women's Tempo Shorts","category_name":"Cardio Equipment","department_name":"Footwear","n_orders":120,"late_orders":66,"canceled_orders":4,"raw_late_pct":55,"eb_late_pct":57.18,"ci_low_pct":53.1,"ci_high_pct":61.16,"shrinkage_pp":2.18,"shrinkage_weight":0.208,"mean_delay_days":0.53,"total_sales":11250,"late_sales":6090,"total_profit":806.48},{"sku_id":917,"product_name":"Glove It Women's Mod Oval 3-Zip Carry All Gol","category_name":"Trade-In","department_name":"Outdoors","n_orders":128,"late_orders":81,"canceled_orders":2,"raw_late_pct":63.28,"eb_late_pct":58.96,"ci_low_pct":54.92,"ci_high_pct":62.88,"shrinkage_pp":-4.32,"shrinkage_weight":0.219,"mean_delay_days":0.73,"total_sales":8883.96,"late_sales":5431.53,"total_profit":769.15},{"sku_id":691,"product_name":"MDGolf Pittsburgh Penguins Putter","category_name":"Women's Golf Clubs","department_name":"Outdoors","n_orders":53,"late_orders":27,"canceled_orders":4,"raw_late_pct":50.94,"eb_late_pct":57.04,"ci_low_pct":52.7,"ci_high_pct":61.28,"shrinkage_pp":6.1,"shrinkage_weight":0.104,"mean_delay_days":0.45,"total_sales":11598.55,"late_sales":5359.33,"total_profit":1533.14},{"sku_id":258,"product_name":"Nike Women's Free 5.0 TR FIT PRT 4 Training S","category_name":"Boxing & MMA","department_name":"Footwear","n_orders":33,"late_orders":18,"canceled_orders":2,"raw_late_pct":54.55,"eb_late_pct":57.53,"ci_low_pct":53.1,"ci_high_pct":61.84,"shrinkage_pp":2.99,"shrinkage_weight":0.067,"mean_delay_days":0.61,"total_sales":9404.01,"late_sales":5319.44,"total_profit":33.92},{"sku_id":93,"product_name":"Under Armour Men's Tech II T-Shirt","category_name":"Lacrosse","department_name":"Fitness","n_orders":114,"late_orders":68,"canceled_orders":3,"raw_late_pct":59.65,"eb_late_pct":58.13,"ci_low_pct":54.03,"ci_high_pct":62.12,"shrinkage_pp":-1.52,"shrinkage_weight":0.2,"mean_delay_days":0.59,"total_sales":8771.49,"late_sales":5172.93,"total_profit":1383.9},{"sku_id":906,"product_name":"Team Golf Tennessee Volunteers Putter Grip","category_name":"Accessories","department_name":"Outdoors","n_orders":117,"late_orders":70,"canceled_orders":3,"raw_late_pct":59.83,"eb_late_pct":58.17,"ci_low_pct":54.09,"ci_high_pct":62.15,"shrinkage_pp":-1.65,"shrinkage_weight":0.204,"mean_delay_days":0.56,"total_sales":8821.47,"late_sales":5097.96,"total_profit":1310.3},{"sku_id":642,"product_name":"Columbia Men's PFG Anchor Tough T-Shirt","category_name":"Shop By Sport","department_name":"Golf","n_orders":126,"late_orders":60,"canceled_orders":3,"raw_late_pct":47.62,"eb_late_pct":55.56,"ci_low_pct":51.49,"ci_high_pct":59.55,"shrinkage_pp":7.94,"shrinkage_weight":0.216,"mean_delay_days":0.26,"total_sales":11880,"late_sales":5010,"total_profit":736.94},{"sku_id":24,"product_name":"Elevation Training Mask 2.0","category_name":"Soccer","department_name":"Fitness","n_orders":32,"late_orders":18,"canceled_orders":1,"raw_late_pct":56.25,"eb_late_pct":57.65,"ci_low_pct":53.22,"ci_high_pct":61.96,"shrinkage_pp":1.4,"shrinkage_weight":0.066,"mean_delay_days":0.75,"total_sales":8638.92,"late_sales":4959.38,"total_profit":1434.37},{"sku_id":567,"product_name":"adidas Men's Germany Black Crest Away Tee","category_name":"Girls' Apparel","department_name":"Golf","n_orders":96,"late_orders":65,"canceled_orders":4,"raw_late_pct":67.71,"eb_late_pct":59.48,"ci_low_pct":55.33,"ci_high_pct":63.5,"shrinkage_pp":-8.23,"shrinkage_weight":0.174,"mean_delay_days":0.94,"total_sales":7175,"late_sales":4800,"total_profit":750.8},{"sku_id":897,"product_name":"Team Golf New England Patriots Putter Grip","category_name":"Accessories","department_name":"Outdoors","n_orders":127,"late_orders":67,"canceled_orders":3,"raw_late_pct":52.76,"eb_late_pct":56.66,"ci_low_pct":52.6,"ci_high_pct":60.63,"shrinkage_pp":3.91,"shrinkage_weight":0.218,"mean_delay_days":0.39,"total_sales":9896.04,"late_sales":4798.08,"total_profit":1011.38},{"sku_id":775,"product_name":"Clicgear 8.0 Shoe Brush","category_name":"Golf Gloves","department_name":"Outdoors","n_orders":285,"late_orders":153,"canceled_orders":12,"raw_late_pct":53.68,"eb_late_pct":56.19,"ci_low_pct":52.59,"ci_high_pct":59.72,"shrinkage_pp":2.5,"shrinkage_weight":0.385,"mean_delay_days":0.6,"total_sales":8871.12,"late_sales":4785.21,"total_profit":815.54},{"sku_id":273,"product_name":"Under Armour Kids' Mercenary Slide","category_name":"Electronics","department_name":"Footwear","n_orders":103,"late_orders":51,"canceled_orders":3,"raw_late_pct":49.51,"eb_late_pct":56.23,"ci_low_pct":52.09,"ci_high_pct":60.29,"shrinkage_pp":6.72,"shrinkage_weight":0.184,"mean_delay_days":0.44,"total_sales":9992.43,"late_sales":4730.31,"total_profit":1231.4},{"sku_id":905,"product_name":"Team Golf Texas Longhorns Putter Grip","category_name":"Accessories","department_name":"Outdoors","n_orders":121,"late_orders":63,"canceled_orders":6,"raw_late_pct":52.07,"eb_late_pct":56.56,"ci_low_pct":52.48,"ci_high_pct":60.55,"shrinkage_pp":4.49,"shrinkage_weight":0.21,"mean_delay_days":0.47,"total_sales":9321.27,"late_sales":4723.11,"total_profit":1054.72},{"sku_id":127,"product_name":"Stiga Master Series ST3100 Competition Indoor","category_name":"Hockey","department_name":"Fitness","n_orders":27,"late_orders":14,"canceled_orders":2,"raw_late_pct":51.85,"eb_late_pct":57.42,"ci_low_pct":52.96,"ci_high_pct":61.76,"shrinkage_pp":5.57,"shrinkage_weight":0.056,"mean_delay_days":0.26,"total_sales":8909.73,"late_sales":4619.86,"total_profit":479.28},{"sku_id":886,"product_name":"Team Golf San Francisco Giants Putter Grip","category_name":"Accessories","department_name":"Outdoors","n_orders":106,"late_orders":59,"canceled_orders":1,"raw_late_pct":55.66,"eb_late_pct":57.36,"ci_low_pct":53.23,"ci_high_pct":61.39,"shrinkage_pp":1.7,"shrinkage_weight":0.189,"mean_delay_days":0.5,"total_sales":8596.56,"late_sales":4548.18,"total_profit":1083.69},{"sku_id":725,"product_name":"LIJA Women's Button Golf Dress","category_name":"Golf Shoes","department_name":"Outdoors","n_orders":76,"late_orders":42,"canceled_orders":4,"raw_late_pct":55.26,"eb_late_pct":57.39,"ci_low_pct":53.15,"ci_high_pct":61.53,"shrinkage_pp":2.13,"shrinkage_weight":0.143,"mean_delay_days":0.53,"total_sales":8208,"late_sales":4536,"total_profit":1156.6},{"sku_id":666,"product_name":"Merrell Men's All Out Flash Trail Running Sho","category_name":"Men's Golf Clubs","department_name":"Outdoors","n_orders":85,"late_orders":41,"canceled_orders":2,"raw_late_pct":48.24,"eb_late_pct":56.25,"ci_low_pct":52.04,"ci_high_pct":60.38,"shrinkage_pp":8.02,"shrinkage_weight":0.157,"mean_delay_days":0.34,"total_sales":9349.15,"late_sales":4509.59,"total_profit":1431.78},{"sku_id":647,"product_name":"Merrell Women's Siren Mid Waterproof Hiking B","category_name":"Men's Golf Clubs","department_name":"Outdoors","n_orders":70,"late_orders":33,"canceled_orders":3,"raw_late_pct":47.14,"eb_late_pct":56.34,"ci_low_pct":52.06,"ci_high_pct":60.52,"shrinkage_pp":9.2,"shrinkage_weight":0.133,"mean_delay_days":0.2,"total_sales":9449.3,"late_sales":4454.67,"total_profit":1237.85},{"sku_id":78,"product_name":"Nike Kids' Grade School KD VI Basketball Shoe","category_name":"Lacrosse","department_name":"Fitness","n_orders":27,"late_orders":17,"canceled_orders":0,"raw_late_pct":62.96,"eb_late_pct":58.04,"ci_low_pct":53.59,"ci_high_pct":62.37,"shrinkage_pp":-4.92,"shrinkage_weight":0.056,"mean_delay_days":0.7,"total_sales":7499.25,"late_sales":4399.56,"total_profit":312.75},{"sku_id":893,"product_name":"Team Golf Pittsburgh Steelers Putter Grip","category_name":"Accessories","department_name":"Outdoors","n_orders":115,"late_orders":57,"canceled_orders":2,"raw_late_pct":49.57,"eb_late_pct":56.1,"ci_low_pct":52,"ci_high_pct":60.12,"shrinkage_pp":6.54,"shrinkage_weight":0.201,"mean_delay_days":0.31,"total_sales":9221.31,"late_sales":4398.24,"total_profit":1313.16},{"sku_id":981,"product_name":"The North Face Women's Recon Backpack","category_name":"Hunting & Shooting","department_name":"Fan Shop","n_orders":24,"late_orders":12,"canceled_orders":0,"raw_late_pct":50,"eb_late_pct":57.36,"ci_low_pct":52.89,"ci_high_pct":61.72,"shrinkage_pp":7.36,"shrinkage_weight":0.05,"mean_delay_days":0.29,"total_sales":8712,"late_sales":4356,"total_profit":1645.32},{"sku_id":705,"product_name":"Cleveland Golf Women's 588 RTX CB Satin Chrom","category_name":"Golf Apparel","department_name":"Outdoors","n_orders":70,"late_orders":35,"canceled_orders":2,"raw_late_pct":50,"eb_late_pct":56.72,"ci_low_pct":52.45,"ci_high_pct":60.89,"shrinkage_pp":6.72,"shrinkage_weight":0.133,"mean_delay_days":0.44,"total_sales":8399.3,"late_sales":4199.65,"total_profit":370.61},{"sku_id":251,"product_name":"Brooks Women's Ghost 6 Running Shoe","category_name":"Boxing & MMA","department_name":"Footwear","n_orders":26,"late_orders":15,"canceled_orders":2,"raw_late_pct":57.69,"eb_late_pct":57.75,"ci_low_pct":53.29,"ci_high_pct":62.08,"shrinkage_pp":0.05,"shrinkage_weight":0.054,"mean_delay_days":0.69,"total_sales":7379.18,"late_sales":4139.54,"total_profit":1253.05},{"sku_id":924,"product_name":"Glove It Urban Brick Golf Towel","category_name":"Trade-In","department_name":"Outdoors","n_orders":132,"late_orders":78,"canceled_orders":5,"raw_late_pct":59.09,"eb_late_pct":58.05,"ci_low_pct":54.02,"ci_high_pct":61.98,"shrinkage_pp":-1.04,"shrinkage_weight":0.224,"mean_delay_days":0.75,"total_sales":6683.82,"late_sales":4077.45,"total_profit":817.96},{"sku_id":364,"product_name":"Total Gym 1400","category_name":"Cleats","department_name":"Apparel","n_orders":16,"late_orders":13,"canceled_orders":0,"raw_late_pct":81.25,"eb_late_pct":58.55,"ci_low_pct":54.04,"ci_high_pct":62.91,"shrinkage_pp":-22.7,"shrinkage_weight":0.034,"mean_delay_days":1.19,"total_sales":4799.84,"late_sales":3899.87,"total_profit":268.2},{"sku_id":305,"product_name":"Mio ALPHA Heart Rate Monitor/Sport Watch","category_name":"Kids' Golf Clubs","department_name":"Outdoors","n_orders":27,"late_orders":19,"canceled_orders":0,"raw_late_pct":70.37,"eb_late_pct":58.45,"ci_low_pct":54,"ci_high_pct":62.77,"shrinkage_pp":-11.92,"shrinkage_weight":0.056,"mean_delay_days":0.93,"total_sales":5373,"late_sales":3781,"total_profit":406.47},{"sku_id":715,"product_name":"TaylorMade Women's RBZ SL Rescue","category_name":"Golf Apparel","department_name":"Outdoors","n_orders":68,"late_orders":29,"canceled_orders":3,"raw_late_pct":42.65,"eb_late_pct":55.79,"ci_low_pct":51.51,"ci_high_pct":59.99,"shrinkage_pp":13.14,"shrinkage_weight":0.13,"mean_delay_days":0.15,"total_sales":8839.32,"late_sales":3769.71,"total_profit":1295.3},{"sku_id":804,"product_name":"Glove It Women's Imperial Golf Glove","category_name":"Golf Balls","department_name":"Outdoors","n_orders":116,"late_orders":61,"canceled_orders":6,"raw_late_pct":52.59,"eb_late_pct":56.7,"ci_low_pct":52.61,"ci_high_pct":60.71,"shrinkage_pp":4.12,"shrinkage_weight":0.203,"mean_delay_days":0.56,"total_sales":7636.18,"late_sales":3678.16,"total_profit":905.26},{"sku_id":203,"product_name":"GoPro HERO3+ Black Edition Camera","category_name":"Strength Training","department_name":"Footwear","n_orders":14,"late_orders":9,"canceled_orders":0,"raw_late_pct":64.29,"eb_late_pct":57.94,"ci_low_pct":53.43,"ci_high_pct":62.33,"shrinkage_pp":-6.34,"shrinkage_weight":0.03,"mean_delay_days":0.71,"total_sales":5599.86,"late_sales":3599.91,"total_profit":1412.56},{"sku_id":625,"product_name":"Nike Men's Kobe IX Elite Low Basketball Shoe","category_name":"Shop By Sport","department_name":"Golf","n_orders":29,"late_orders":17,"canceled_orders":0,"raw_late_pct":58.62,"eb_late_pct":57.8,"ci_low_pct":53.36,"ci_high_pct":62.12,"shrinkage_pp":-0.82,"shrinkage_weight":0.06,"mean_delay_days":0.48,"total_sales":5799.71,"late_sales":3399.83,"total_profit":319.35},{"sku_id":295,"product_name":"Fitbit The One Wireless Activity & Sleep Trac","category_name":"Kids' Golf Clubs","department_name":"Outdoors","n_orders":24,"late_orders":10,"canceled_orders":0,"raw_late_pct":41.67,"eb_late_pct":56.95,"ci_low_pct":52.47,"ci_high_pct":61.31,"shrinkage_pp":15.28,"shrinkage_weight":0.05,"mean_delay_days":0.25,"total_sales":6996.5,"late_sales":3398.3,"total_profit":243.45},{"sku_id":926,"product_name":"Glove It Imperial Golf Towel","category_name":"Trade-In","department_name":"Outdoors","n_orders":124,"late_orders":68,"canceled_orders":5,"raw_late_pct":54.84,"eb_late_pct":57.13,"ci_low_pct":53.06,"ci_high_pct":61.1,"shrinkage_pp":2.29,"shrinkage_weight":0.214,"mean_delay_days":0.54,"total_sales":6140.16,"late_sales":3373.89,"total_profit":991.16},{"sku_id":1361,"product_name":"Toys ","category_name":"Toys","department_name":"Fan Shop","n_orders":529,"late_orders":291,"canceled_orders":22,"raw_late_pct":55.01,"eb_late_pct":56.28,"ci_low_pct":53.16,"ci_high_pct":59.35,"shrinkage_pp":1.27,"shrinkage_weight":0.537,"mean_delay_days":0.55,"total_sales":6104.66,"late_sales":3358.14,"total_profit":900.71},{"sku_id":58,"product_name":"Diamondback Boys' Insight 24 Performance Hybr","category_name":"Basketball","department_name":"Fitness","n_orders":13,"late_orders":11,"canceled_orders":0,"raw_late_pct":84.62,"eb_late_pct":58.49,"ci_low_pct":53.98,"ci_high_pct":62.87,"shrinkage_pp":-26.12,"shrinkage_weight":0.028,"mean_delay_days":1.54,"total_sales":3899.87,"late_sales":3299.89,"total_profit":720.12},{"sku_id":359,"product_name":"Nike Men's Free TR 5.0 TB Training Shoe","category_name":"As Seen on  TV!","department_name":"Footwear","n_orders":25,"late_orders":10,"canceled_orders":1,"raw_late_pct":40,"eb_late_pct":56.83,"ci_low_pct":52.36,"ci_high_pct":61.19,"shrinkage_pp":16.83,"shrinkage_weight":0.052,"mean_delay_days":0.36,"total_sales":7399.26,"late_sales":3299.67,"total_profit":-88.17},{"sku_id":652,"product_name":"Merrell Women's Grassbow Sport Waterproof Hik","category_name":"Men's Golf Clubs","department_name":"Outdoors","n_orders":58,"late_orders":25,"canceled_orders":4,"raw_late_pct":43.1,"eb_late_pct":56.1,"ci_low_pct":51.77,"ci_high_pct":60.33,"shrinkage_pp":12.99,"shrinkage_weight":0.113,"mean_delay_days":0.17,"total_sales":7539.42,"late_sales":3249.75,"total_profit":1029.71},{"sku_id":810,"product_name":"Glove It Women's Mod Oval Golf Glove","category_name":"Golf Balls","department_name":"Outdoors","n_orders":114,"late_orders":56,"canceled_orders":5,"raw_late_pct":49.12,"eb_late_pct":56.02,"ci_low_pct":51.92,"ci_high_pct":60.05,"shrinkage_pp":6.9,"shrinkage_weight":0.2,"mean_delay_days":0.34,"total_sales":6896.55,"late_sales":3138.43,"total_profit":1206.57},{"sku_id":1346,"product_name":"Sports Books ","category_name":"Books","department_name":"Book Shop","n_orders":147,"late_orders":91,"canceled_orders":1,"raw_late_pct":61.9,"eb_late_pct":58.76,"ci_low_pct":54.79,"ci_high_pct":62.63,"shrinkage_pp":-3.14,"shrinkage_weight":0.244,"mean_delay_days":0.71,"total_sales":4568.76,"late_sales":2828.28,"total_profit":259.32},{"sku_id":306,"product_name":"Polar FT4 Heart Rate Monitor","category_name":"Kids' Golf Clubs","department_name":"Outdoors","n_orders":19,"late_orders":9,"canceled_orders":0,"raw_late_pct":47.37,"eb_late_pct":57.33,"ci_low_pct":52.84,"ci_high_pct":61.71,"shrinkage_pp":9.97,"shrinkage_weight":0.04,"mean_delay_days":0.11,"total_sales":6119.32,"late_sales":2609.71,"total_profit":1380.24},{"sku_id":35,"product_name":"adidas Brazuca 2014 Official Match Ball","category_name":"Baseball & Softball","department_name":"Fitness","n_orders":24,"late_orders":16,"canceled_orders":0,"raw_late_pct":66.67,"eb_late_pct":58.2,"ci_low_pct":53.73,"ci_high_pct":62.53,"shrinkage_pp":-8.47,"shrinkage_weight":0.05,"mean_delay_days":0.79,"total_sales":3839.76,"late_sales":2559.84,"total_profit":603.25},{"sku_id":1347,"product_name":"Baby sweater","category_name":"Baby","department_name":"Apparel","n_orders":82,"late_orders":43,"canceled_orders":1,"raw_late_pct":52.44,"eb_late_pct":56.94,"ci_low_pct":52.72,"ci_high_pct":61.07,"shrinkage_pp":4.5,"shrinkage_weight":0.152,"mean_delay_days":0.55,"total_sales":4844.56,"late_sales":2540.44,"total_profit":822.92},{"sku_id":19,"product_name":"Nike Men's Fingertrap Max Training Shoe","category_name":"Soccer","department_name":"Fitness","n_orders":34,"late_orders":20,"canceled_orders":0,"raw_late_pct":58.82,"eb_late_pct":57.82,"ci_low_pct":53.4,"ci_high_pct":62.12,"shrinkage_pp":-1,"shrinkage_weight":0.069,"mean_delay_days":1.03,"total_sales":4249.66,"late_sales":2499.8,"total_profit":594.72},{"sku_id":303,"product_name":"Garmin Forerunner 910XT GPS Watch","category_name":"Kids' Golf Clubs","department_name":"Outdoors","n_orders":11,"late_orders":6,"canceled_orders":0,"raw_late_pct":54.55,"eb_late_pct":57.67,"ci_low_pct":53.14,"ci_high_pct":62.08,"shrinkage_pp":3.13,"shrinkage_weight":0.024,"mean_delay_days":0.64,"total_sales":4399.89,"late_sales":2399.94,"total_profit":33.5},{"sku_id":607,"product_name":"Garmin Approach S3 Golf GPS Watch","category_name":"Trade-In","department_name":"Outdoors","n_orders":21,"late_orders":9,"canceled_orders":1,"raw_late_pct":42.86,"eb_late_pct":57.09,"ci_low_pct":52.61,"ci_high_pct":61.47,"shrinkage_pp":14.24,"shrinkage_weight":0.044,"mean_delay_days":0.19,"total_sales":5249.79,"late_sales":2249.91,"total_profit":585.38},{"sku_id":982,"product_name":"insta-bed Neverflat Air Mattress","category_name":"Hunting & Shooting","department_name":"Fan Shop","n_orders":20,"late_orders":14,"canceled_orders":0,"raw_late_pct":70,"eb_late_pct":58.26,"ci_low_pct":53.78,"ci_high_pct":62.62,"shrinkage_pp":-11.74,"shrinkage_weight":0.042,"mean_delay_days":0.85,"total_sales":2999.8,"late_sales":2099.86,"total_profit":383.36},{"sku_id":216,"product_name":"Yakima DoubleDown Ace Hitch Mount 4-Bike Rack","category_name":"Strength Training","department_name":"Footwear","n_orders":24,"late_orders":11,"canceled_orders":0,"raw_late_pct":45.83,"eb_late_pct":57.15,"ci_low_pct":52.68,"ci_high_pct":61.51,"shrinkage_pp":11.32,"shrinkage_weight":0.05,"mean_delay_days":0.42,"total_sales":4536,"late_sales":2079,"total_profit":194},{"sku_id":208,"product_name":"SOLE E35 Elliptical","category_name":"Strength Training","department_name":"Footwear","n_orders":3,"late_orders":1,"canceled_orders":0,"raw_late_pct":33.33,"eb_late_pct":57.59,"ci_low_pct":53.02,"ci_high_pct":62.04,"shrinkage_pp":24.26,"shrinkage_weight":0.007,"mean_delay_days":0.33,"total_sales":5999.97,"late_sales":1999.99,"total_profit":1569},{"sku_id":60,"product_name":"SOLE E25 Elliptical","category_name":"Basketball","department_name":"Fitness","n_orders":3,"late_orders":2,"canceled_orders":0,"raw_late_pct":66.67,"eb_late_pct":57.81,"ci_low_pct":53.24,"ci_high_pct":62.25,"shrinkage_pp":-8.86,"shrinkage_weight":0.007,"mean_delay_days":0.67,"total_sales":2999.97,"late_sales":1999.98,"total_profit":934.95},{"sku_id":858,"product_name":"GolfBuddy VT3 GPS Watch","category_name":"Kids' Golf Clubs","department_name":"Outdoors","n_orders":13,"late_orders":7,"canceled_orders":0,"raw_late_pct":53.85,"eb_late_pct":57.64,"ci_low_pct":53.12,"ci_high_pct":62.04,"shrinkage_pp":3.8,"shrinkage_weight":0.028,"mean_delay_days":0.38,"total_sales":2599.87,"late_sales":1399.93,"total_profit":573.52},{"sku_id":860,"product_name":"Bushnell Pro X7 Jolt Slope Rangefinder","category_name":"Kids' Golf Clubs","department_name":"Outdoors","n_orders":3,"late_orders":2,"canceled_orders":0,"raw_late_pct":66.67,"eb_late_pct":57.81,"ci_low_pct":53.24,"ci_high_pct":62.25,"shrinkage_pp":-8.86,"shrinkage_weight":0.007,"mean_delay_days":0,"total_sales":1799.97,"late_sales":1199.98,"total_profit":-208.98},{"sku_id":61,"product_name":"Diamondback Girls' Clarity 24 Hybrid Bike 201","category_name":"Basketball","department_name":"Fitness","n_orders":9,"late_orders":4,"canceled_orders":0,"raw_late_pct":44.44,"eb_late_pct":57.49,"ci_low_pct":52.95,"ci_high_pct":61.91,"shrinkage_pp":13.05,"shrinkage_weight":0.019,"mean_delay_days":0.22,"total_sales":2699.91,"late_sales":1199.96,"total_profit":-504.21},{"sku_id":311,"product_name":"Polar Loop Activity Tracker","category_name":"Kids' Golf Clubs","department_name":"Outdoors","n_orders":17,"late_orders":9,"canceled_orders":0,"raw_late_pct":52.94,"eb_late_pct":57.58,"ci_low_pct":53.07,"ci_high_pct":61.96,"shrinkage_pp":4.64,"shrinkage_weight":0.036,"mean_delay_days":0.18,"total_sales":1869.15,"late_sales":989.55,"total_profit":-56.11},{"sku_id":1348,"product_name":"CDs of rock","category_name":"CDs","department_name":"Discs Shop","n_orders":95,"late_orders":61,"canceled_orders":0,"raw_late_pct":64.21,"eb_late_pct":58.86,"ci_low_pct":54.7,"ci_high_pct":62.9,"shrinkage_pp":-5.35,"shrinkage_weight":0.172,"mean_delay_days":0.77,"total_sales":1072.55,"late_sales":688.69,"total_profit":108.35},{"sku_id":226,"product_name":"Bowflex SelectTech 1090 Dumbbells","category_name":"Fitness Accessories","department_name":"Footwear","n_orders":3,"late_orders":1,"canceled_orders":0,"raw_late_pct":33.33,"eb_late_pct":57.59,"ci_low_pct":53.02,"ci_high_pct":62.04,"shrinkage_pp":24.26,"shrinkage_weight":0.007,"mean_delay_days":-0.33,"total_sales":1799.97,"late_sales":599.99,"total_profit":392.96},{"sku_id":845,"product_name":"Garmin Approach S4 Golf GPS Watch","category_name":"Kids' Golf Clubs","department_name":"Outdoors","n_orders":5,"late_orders":2,"canceled_orders":0,"raw_late_pct":40,"eb_late_pct":57.56,"ci_low_pct":52.99,"ci_high_pct":61.99,"shrinkage_pp":17.56,"shrinkage_weight":0.011,"mean_delay_days":0.6,"total_sales":1499.95,"late_sales":599.98,"total_profit":356.65}]};
+    const STAR_SQL = "-- =============================================================================\n-- Global Store & SKU Operations (DataCo Supply Chain — 58,894 Order Items)\n-- Relational Star Schema DDL & Analytical Views for Empirical Bayes + SPC\n-- =============================================================================\n\nCREATE SCHEMA IF NOT EXISTS sku_ops_analytics;\n\n-- 1. DIMENSION TABLE: SKU CATALOG (116 Unique Products across 49 Categories)\nCREATE TABLE sku_ops_analytics.dim_sku (\n    sku_id          INTEGER      PRIMARY KEY, -- Order Item Cardprod Id\n    product_name    VARCHAR(160) NOT NULL,\n    category_id     INTEGER      NOT NULL,\n    category_name   VARCHAR(80)  NOT NULL,\n    department_id   INTEGER      NOT NULL,\n    department_name VARCHAR(80)  NOT NULL,\n    unit_price      NUMERIC(12,2) NOT NULL\n);\n\n-- 2. DIMENSION TABLE: ORDER GEOGRAPHY (5 Markets -> 23 Order Regions)\nCREATE TABLE sku_ops_analytics.dim_geography (\n    geo_key         SERIAL       PRIMARY KEY,\n    market          VARCHAR(40)  NOT NULL,    -- Europe, LATAM, Pacific Asia, USCA, Africa\n    order_region    VARCHAR(60)  NOT NULL,    -- 23 regions (e.g., Western Europe, Central America)\n    order_country   VARCHAR(80)  NOT NULL,\n    order_state     VARCHAR(80),\n    order_city      VARCHAR(80),\n    UNIQUE (market, order_region, order_country, order_state, order_city)\n);\n\n-- 3. DIMENSION TABLE: CUSTOMERS (3 Segments: Consumer, Corporate, Home Office)\nCREATE TABLE sku_ops_analytics.dim_customer (\n    customer_id      INTEGER     PRIMARY KEY,\n    customer_segment VARCHAR(30) NOT NULL,\n    customer_country VARCHAR(80) NOT NULL,\n    customer_state   VARCHAR(40),\n    customer_city    VARCHAR(80)\n);\n\n-- 4. FACT TABLE: ORDER ITEMS (58,894 Lines across 31,160 Orders, Jan 2015 - Jan 2018)\nCREATE TABLE sku_ops_analytics.fact_order_items (\n    order_item_id           INTEGER       PRIMARY KEY,\n    order_id                INTEGER       NOT NULL,\n    sku_id                  INTEGER       NOT NULL REFERENCES sku_ops_analytics.dim_sku(sku_id),\n    geo_key                 INTEGER       NOT NULL REFERENCES sku_ops_analytics.dim_geography(geo_key),\n    customer_id             INTEGER       NOT NULL REFERENCES sku_ops_analytics.dim_customer(customer_id),\n    order_timestamp         TIMESTAMP     NOT NULL, -- Normalized from mixed MM/DD/YYYY & MM-DD-YYYY\n    shipping_timestamp      TIMESTAMP     NOT NULL,\n    shipping_mode           VARCHAR(30)   NOT NULL, -- Standard, Second Class, First Class, Same Day\n    payment_type            VARCHAR(20)   NOT NULL, -- DEBIT, TRANSFER, PAYMENT, CASH\n    order_status            VARCHAR(30)   NOT NULL,\n    delivery_status         VARCHAR(30)   NOT NULL,\n    days_shipping_real      SMALLINT      NOT NULL,\n    days_shipment_scheduled SMALLINT      NOT NULL,\n    lead_time_variance_days SMALLINT      NOT NULL, -- real - scheduled (>0 means behind SLA)\n    is_late_delivery        BOOLEAN       NOT NULL, -- Late_delivery_risk (1 -> TRUE, 0 -> FALSE)\n    is_canceled_shipping    BOOLEAN       NOT NULL, -- Delivery Status = 'Shipping canceled'\n    quantity                SMALLINT      NOT NULL,\n    gross_sales             NUMERIC(12,2) NOT NULL,\n    discount_amount         NUMERIC(12,2) NOT NULL,\n    net_item_total          NUMERIC(12,2) NOT NULL,\n    profit_per_order        NUMERIC(12,2) NOT NULL\n);\n\n-- =============================================================================\n-- ANALYTICAL VIEW 1: SKU-LEVEL EMPIRICAL BAYES INPUTS (116 SKUs)\n-- Separates noisy low-volume spikes from statistically credible high-volume bottlenecks\n-- =============================================================================\nCREATE OR REPLACE VIEW sku_ops_analytics.vw_sku_empirical_bayes_inputs AS\nSELECT\n    s.sku_id,\n    s.product_name,\n    s.category_name,\n    s.department_name,\n    COUNT(f.order_item_id)                                              AS n_orders,\n    SUM(CASE WHEN f.is_late_delivery THEN 1 ELSE 0 END)                 AS late_orders,\n    ROUND(100.0 * AVG(f.is_late_delivery::INT)::NUMERIC, 2)             AS raw_late_pct,\n    ROUND(AVG(f.lead_time_variance_days)::NUMERIC, 3)                   AS mean_delay_days,\n    ROUND(SUM(f.gross_sales)::NUMERIC, 2)                               AS total_sales,\n    ROUND(SUM(CASE WHEN f.is_late_delivery THEN f.gross_sales ELSE 0 END)::NUMERIC, 2) AS late_sales_exposure,\n    ROUND(SUM(f.profit_per_order)::NUMERIC, 2)                          AS total_profit\nFROM sku_ops_analytics.dim_sku s\nJOIN sku_ops_analytics.fact_order_items f ON f.sku_id = s.sku_id\nGROUP BY s.sku_id, s.product_name, s.category_name, s.department_name\nORDER BY late_sales_exposure DESC;\n\n-- =============================================================================\n-- ANALYTICAL VIEW 2: MONTHLY STATISTICAL PROCESS CONTROL (SPC) SERIES (37 MONTHS)\n-- Feeds Shewhart p-chart (late rate) and X-bar / S chart (lead-time variance)\n-- =============================================================================\nCREATE OR REPLACE VIEW sku_ops_analytics.vw_monthly_spc_control_inputs AS\nSELECT\n    TO_CHAR(DATE_TRUNC('month', f.order_timestamp), 'YYYY-MM')          AS order_month,\n    COUNT(f.order_item_id)                                              AS n_orders,\n    SUM(CASE WHEN f.is_late_delivery THEN 1 ELSE 0 END)                 AS late_orders,\n    ROUND(100.0 * AVG(f.is_late_delivery::INT)::NUMERIC, 2)             AS late_pct,\n    ROUND(100.0 * AVG(f.is_canceled_shipping::INT)::NUMERIC, 2)         AS canceled_pct,\n    ROUND(AVG(f.lead_time_variance_days)::NUMERIC, 3)                   AS mean_delay_days,\n    ROUND(STDDEV_SAMP(f.lead_time_variance_days)::NUMERIC, 3)           AS stddev_delay_days,\n    ROUND(SUM(f.gross_sales)::NUMERIC, 2)                               AS monthly_sales\nFROM sku_ops_analytics.fact_order_items f\nGROUP BY DATE_TRUNC('month', f.order_timestamp)\nORDER BY order_month;\n";
+
+    const fmtInt = (v) => Number(v).toLocaleString("en-US");
+    const fmtPct = (v) => `${Number(v).toFixed(2)}%`;
+    const fmtDec = (v) => Number(v).toFixed(2);
+    const fmtUsd = (v) => `$${Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
+    document.getElementById("sql-ddl-code").textContent = STAR_SQL;
+
+    // 1. Render Shipping Tier Ledger
+    const modeTbody = document.getElementById("mode-ledger-tbody");
+    OPS_DATA.shipping_modes.forEach((m) => {
+      const badgeClass = m.late_pct < 45 ? "b-green" : m.late_pct < 70 ? "b-amber" : "b-pink";
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <th scope="row"><span class="badge ${badgeClass}">${m.shipping_mode}</span></th>
+        <td class="num">${fmtInt(m.n_orders)}</td>
+        <td class="num">${m.order_share_pct.toFixed(1)}%</td>
+        <td class="num">${fmtPct(m.late_pct)}</td>
+        <td class="num">${m.avg_scheduled_days.toFixed(2)} d</td>
+        <td class="num">${m.avg_real_days.toFixed(2)} d</td>
+        <td class="num">${m.mean_delay_days >= 0 ? "+" : ""}${m.mean_delay_days.toFixed(2)} d</td>
+        <td class="num">${fmtUsd(m.total_sales)}</td>
+      `;
+      modeTbody.appendChild(tr);
+    });
+
+    // 2. Render Data Hygiene Rules Table
+    const hygieneTbody = document.getElementById("hygiene-tbody");
+    OPS_DATA.data_hygiene_rules.forEach((rule) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <th scope="row"><span class="code-mono">${rule.field}</span></th>
+        <td>${rule.raw_anomaly}</td>
+        <td>${rule.clean_rule}</td>
+      `;
+      hygieneTbody.appendChild(tr);
+    });
+
+    // 3. Render Top / Bottom Comparison Matrix
+    const matrixSections = [
+      { key: "highest_eb_risk", title: "Highest Credible EB Posterior Risk (Top 5)", badge: "b-pink" },
+      { key: "lowest_eb_risk", title: "Lowest Credible EB Posterior Risk (Bottom 5)", badge: "b-green" },
+      { key: "largest_downward_shrinkage", title: "Biggest Downward Corrections (Small-Sample Spikes Tamed)", badge: "b-amber" },
+      { key: "largest_upward_shrinkage", title: "Biggest Upward Corrections (Small-Sample False Safes Tamed)", badge: "b-blue" },
+    ];
+    const perfContainer = document.getElementById("performers-container");
+    matrixSections.forEach((sec) => {
+      const rows = OPS_DATA.top_bottom_matrix[sec.key];
+      const div = document.createElement("div");
+      div.className = "table-wrapper";
+      div.innerHTML = `
+        <table class="data-table matrix-table">
+          <caption>${sec.title}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Product (SKU)</th>
+              <th scope="col" class="num">Orders</th>
+              <th scope="col" class="num">Raw %</th>
+              <th scope="col" class="num">EB Post %</th>
+              <th scope="col" class="num">Shrinkage</th>
+              <th scope="col" class="num">Late Sales</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r) => `
+              <tr>
+                <th scope="row" title="${r.product_name}"><span class="badge ${sec.badge}" style="margin-inline-end:6px;">#${r.sku_id}</span>${r.product_name.slice(0, 28)}</th>
+                <td class="num">${fmtInt(r.n_orders)}</td>
+                <td class="num">${r.raw_late_pct.toFixed(1)}%</td>
+                <td class="num"><strong>${r.eb_late_pct.toFixed(2)}%</strong></td>
+                <td class="num">${r.shrinkage_pp >= 0 ? "+" : ""}${r.shrinkage_pp.toFixed(1)} pp</td>
+                <td class="num">${fmtUsd(r.late_sales)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+      perfContainer.appendChild(div);
+    });
+
+    // 4. Populate Department Dropdown
+    const deptSelect = document.getElementById("deptFilter");
+    [...new Set(OPS_DATA.skus.map((s) => s.department_name))].sort().forEach((d) => {
+      const opt = document.createElement("option");
+      opt.value = d;
+      opt.textContent = d;
+      deptSelect.appendChild(opt);
+    });
+
+    // 5. Initialize AG Grids
+    const skuColumnDefs = [
+      { field: "sku_id", headerName: "SKU", width: 84, pinned: "left" },
+      { field: "product_name", headerName: "Product Name", width: 250, pinned: "left", filter: "agTextColumnFilter" },
+      { field: "category_name", headerName: "Category", width: 150, filter: "agTextColumnFilter" },
+      { field: "department_name", headerName: "Department", width: 135, filter: "agTextColumnFilter" },
+      { field: "n_orders", headerName: "Orders", width: 105, type: "numericColumn", valueFormatter: (p) => fmtInt(p.value) },
+      { field: "raw_late_pct", headerName: "Raw Late %", width: 115, type: "numericColumn", valueFormatter: (p) => fmtPct(p.value) },
+      {
+        field: "eb_late_pct",
+        headerName: "EB Posterior %",
+        width: 140,
+        type: "numericColumn",
+        cellRenderer: (p) => {
+          const cls = p.value > 58.5 ? "b-pink" : p.value < 56.5 ? "b-green" : "b-blue";
+          return `<span class="badge ${cls}">${Number(p.value).toFixed(2)}%</span>`;
+        },
+      },
+      {
+        headerName: "95% Credible Interval",
+        width: 165,
+        valueGetter: (p) => `${p.data.ci_low_pct.toFixed(1)}% – ${p.data.ci_high_pct.toFixed(1)}%`,
+      },
+      { field: "shrinkage_pp", headerName: "Shrinkage (pp)", width: 130, type: "numericColumn", valueFormatter: (p) => `${p.value >= 0 ? "+" : ""}${p.value.toFixed(2)}` },
+      { field: "mean_delay_days", headerName: "Avg Delay", width: 110, type: "numericColumn", valueFormatter: (p) => `${p.value >= 0 ? "+" : ""}${p.value.toFixed(2)}d` },
+      { field: "late_sales", headerName: "Late Exposure ($)", width: 150, type: "numericColumn", valueFormatter: (p) => fmtUsd(p.value) },
+      { field: "total_sales", headerName: "Total Sales ($)", width: 140, type: "numericColumn", valueFormatter: (p) => fmtUsd(p.value) },
+    ];
+
+    const spcStatusBadge = (val) => {
+      if (val === "In Control") return `<span class="badge b-green">${val}</span>`;
+      if (val.includes("Rule 1")) return `<span class="badge b-pink">${val}</span>`;
+      return `<span class="badge b-amber">${val}</span>`;
+    };
+
+    const spcColumnDefs = [
+      { field: "order_month", headerName: "Month", width: 105, pinned: "left" },
+      { field: "n_orders", headerName: "Orders", width: 100, type: "numericColumn", valueFormatter: (p) => fmtInt(p.value) },
+      { field: "late_pct", headerName: "Late %", width: 105, type: "numericColumn", valueFormatter: (p) => fmtPct(p.value) },
+      { field: "lcl_late_pct", headerName: "Late LCL", width: 105, type: "numericColumn", valueFormatter: (p) => fmtPct(p.value) },
+      { field: "ucl_late_pct", headerName: "Late UCL", width: 105, type: "numericColumn", valueFormatter: (p) => fmtPct(p.value) },
+      { field: "late_spc_status", headerName: "Late p-Chart", width: 185, cellRenderer: (p) => spcStatusBadge(p.value) },
+      { field: "canc_pct", headerName: "Cancel %", width: 105, type: "numericColumn", valueFormatter: (p) => fmtPct(p.value) },
+      { field: "canc_spc_status", headerName: "Cancel p-Chart", width: 185, cellRenderer: (p) => spcStatusBadge(p.value) },
+      { field: "mean_delay_days", headerName: "Mean Delay", width: 120, type: "numericColumn", valueFormatter: (p) => `${p.value >= 0 ? "+" : ""}${p.value.toFixed(3)}d` },
+      { field: "delay_spc_status", headerName: "Delay X-bar", width: 185, cellRenderer: (p) => spcStatusBadge(p.value) },
+      { field: "standard_share_pct", headerName: "Std Class %", width: 115, type: "numericColumn", valueFormatter: (p) => `${p.value.toFixed(1)}%` },
+    ];
+
+    const laneColumnDefs = [
+      { field: "market", headerName: "Market", width: 125, pinned: "left" },
+      { field: "order_region", headerName: "Order Region", width: 165, pinned: "left", filter: "agTextColumnFilter" },
+      { field: "shipping_mode", headerName: "Shipping Mode", width: 145, filter: "agTextColumnFilter" },
+      { field: "n_orders", headerName: "Orders", width: 100, type: "numericColumn", valueFormatter: (p) => fmtInt(p.value) },
+      { field: "raw_late_pct", headerName: "Raw Late %", width: 115, type: "numericColumn", valueFormatter: (p) => fmtPct(p.value) },
+      {
+        field: "eb_late_pct",
+        headerName: "EB Posterior %",
+        width: 140,
+        type: "numericColumn",
+        cellRenderer: (p) => {
+          const cls = p.value >= 75 ? "b-pink" : p.value >= 45 ? "b-amber" : "b-green";
+          return `<span class="badge ${cls}">${Number(p.value).toFixed(2)}%</span>`;
+        },
+      },
+      {
+        headerName: "95% Credible Interval",
+        width: 160,
+        valueGetter: (p) => `${p.data.ci_low_pct.toFixed(1)}% – ${p.data.ci_high_pct.toFixed(1)}%`,
+      },
+      { field: "mean_delay_days", headerName: "Avg Delay", width: 110, type: "numericColumn", valueFormatter: (p) => `${p.value >= 0 ? "+" : ""}${p.value.toFixed(2)}d` },
+      { field: "late_sales", headerName: "Late Exposure ($)", width: 150, type: "numericColumn", valueFormatter: (p) => fmtUsd(p.value) },
+    ];
+
+    let skuGridApi = null;
+    let spcGridApi = null;
+    let laneGridApi = null;
+    if (typeof agGrid !== "undefined") {
+      skuGridApi = agGrid.createGrid(document.getElementById("skuGrid"), {
+        columnDefs: skuColumnDefs,
+        rowData: OPS_DATA.skus,
+        defaultColDef: { sortable: true, resizable: true, filter: true },
+        pagination: true,
+        paginationPageSize: 25,
+        paginationPageSizeSelector: [25, 50, 116],
+      });
+      spcGridApi = agGrid.createGrid(document.getElementById("spcGrid"), {
+        columnDefs: spcColumnDefs,
+        rowData: OPS_DATA.monthly_spc,
+        defaultColDef: { sortable: true, resizable: true, filter: true },
+        pagination: true,
+        paginationPageSize: 12,
+        paginationPageSizeSelector: [12, 24, 37],
+      });
+      laneGridApi = agGrid.createGrid(document.getElementById("laneGrid"), {
+        columnDefs: laneColumnDefs,
+        rowData: OPS_DATA.lanes,
+        defaultColDef: { sortable: true, resizable: true, filter: true },
+        pagination: true,
+        paginationPageSize: 20,
+        paginationPageSizeSelector: [20, 50, 92],
+      });
+    } else {
+      const offlineMsg = '<div style="padding:20px;color:#fbbf24;">AG Grid Community CDN could not be loaded (offline or blocked). Views 1, 3, and 4 native HTML5 tables remain fully functional.</div>';
+      document.getElementById("skuGrid").innerHTML = offlineMsg;
+      document.getElementById("spcGrid").innerHTML = offlineMsg;
+      document.getElementById("laneGrid").innerHTML = offlineMsg;
+    }
+
+    // 6. Tab Switching Logic
+    const tabBtns = document.querySelectorAll(".tab-btn");
+    const viewPanes = document.querySelectorAll(".view-pane");
+    tabBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const targetId = btn.getAttribute("data-target");
+        tabBtns.forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
+        viewPanes.forEach((pane) => {
+          pane.hidden = pane.id !== targetId;
+        });
+        if (targetId === "view-grids") {
+          requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+        }
+      });
+    });
+
+    // 7. Global Filter & Ledger Reactivity
+    function applyFilters() {
+      const dVal = document.getElementById("deptFilter").value;
+      const rVal = document.getElementById("riskFilter").value;
+      const qVal = document.getElementById("quickSearch").value.trim().toLowerCase();
+
+      const filteredSkus = OPS_DATA.skus.filter((s) => {
+        if (dVal !== "ALL" && s.department_name !== dVal) return false;
+        if (rVal === "HIGH" && s.eb_late_pct <= 58.5) return false;
+        if (rVal === "MID" && (s.eb_late_pct < 56.5 || s.eb_late_pct > 58.5)) return false;
+        if (rVal === "LOW" && s.eb_late_pct >= 56.5) return false;
+        if (qVal && !(`${s.product_name} ${s.category_name} ${s.department_name} ${s.sku_id}`.toLowerCase().includes(qVal))) return false;
+        return true;
+      });
+
+      document.getElementById("empty-filter-banner").hidden = filteredSkus.length > 0;
+      if (skuGridApi) skuGridApi.setGridOption("rowData", filteredSkus);
+
+      const totOrders = filteredSkus.reduce((acc, s) => acc + s.n_orders, 0);
+      const totSales = filteredSkus.reduce((acc, s) => acc + s.total_sales, 0);
+      const totLateSales = filteredSkus.reduce((acc, s) => acc + s.late_sales, 0);
+      const totLateOrders = filteredSkus.reduce((acc, s) => acc + s.late_orders, 0);
+      const wDelay = filteredSkus.reduce((acc, s) => acc + s.mean_delay_days * s.n_orders, 0) / Math.max(1, totOrders);
+      const wRate = totOrders > 0 ? (totLateOrders / totOrders) * 100 : 0;
+
+      document.getElementById("kpi-orders").textContent = fmtInt(totOrders);
+      document.getElementById("kpi-skus").textContent = `${filteredSkus.length} SKUs matching active filters`;
+      document.getElementById("kpi-sales").textContent = `$${(totSales / 1e6).toFixed(2)}M`;
+      document.getElementById("kpi-exposure").textContent = `$${(totLateSales / 1e6).toFixed(2)}M late exposure (${totSales > 0 ? ((totLateSales / totSales) * 100).toFixed(1) : "0.0"}%)`;
+      document.getElementById("kpi-eb").textContent = `${wRate.toFixed(2)}%`;
+      document.getElementById("kpi-delay").textContent = `${wDelay >= 0 ? "+" : ""}${wDelay.toFixed(3)} days`;
+    }
+
+    document.getElementById("deptFilter").addEventListener("change", applyFilters);
+    document.getElementById("riskFilter").addEventListener("change", applyFilters);
+    document.getElementById("quickSearch").addEventListener("input", applyFilters);
+    document.getElementById("btnResetFilters").addEventListener("click", () => {
+      document.getElementById("deptFilter").value = "ALL";
+      document.getElementById("riskFilter").value = "ALL";
+      document.getElementById("quickSearch").value = "";
+      applyFilters();
+    });
+    document.getElementById("btnExportSku").addEventListener("click", () => {
+      if (skuGridApi) skuGridApi.exportDataAsCsv({ fileName: "sku_empirical_bayes_ranking.csv" });
+    });
+    document.getElementById("btnExportSpc").addEventListener("click", () => {
+      if (spcGridApi) spcGridApi.exportDataAsCsv({ fileName: "monthly_spc_control_charts.csv" });
+    });
+    document.getElementById("btnExportLanes").addEventListener("click", () => {
+      if (laneGridApi) laneGridApi.exportDataAsCsv({ fileName: "region_shipping_mode_lanes.csv" });
+    });
+
+    // 8. Dual Light / Dark Theme Parity (syncs CSS color-scheme, AG Grids, and <picture> charts)
+    const themeBtn = document.getElementById("btnThemeToggle");
+    const gridEls = ["skuGrid", "spcGrid", "laneGrid"].map((id) => document.getElementById(id));
+    function applyTheme(mode) {
+      document.documentElement.dataset.theme = mode;
+      const isLight = mode === "light";
+      themeBtn.textContent = isLight ? "Dark Mode" : "Light Mode";
+      gridEls.forEach((el) => {
+        el.classList.toggle("ag-theme-quartz", isLight);
+        el.classList.toggle("ag-theme-quartz-dark", !isLight);
+      });
+      document.querySelectorAll("picture[data-chart]").forEach((pic) => {
+        const name = pic.getAttribute("data-chart");
+        const src = isLight ? `images/${name}_light.png` : `images/${name}.png`;
+        const s = pic.querySelector("source");
+        const img = pic.querySelector("img");
+        if (s) s.setAttribute("srcset", src);
+        if (img) img.setAttribute("src", src);
+      });
+    }
+    const osLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+    applyTheme(osLight ? "light" : "dark");
+    themeBtn.addEventListener("click", () => {
+      applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+    });
+  </script>
+</body>
+</html>

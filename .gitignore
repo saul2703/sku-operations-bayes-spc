@@ -1,0 +1,5 @@
+# Exclude raw DataCo CSV (>22 MB) and local caches
+DataCoSupplyChainDataset.csv
+*.csv
+__pycache__/
+.DS_Store
