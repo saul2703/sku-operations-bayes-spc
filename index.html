@@ -92,6 +92,9 @@
       border-radius: 6px;
       white-space: nowrap;
     }
+    a.meta-tag { color: var(--c1-blue); text-decoration: none; font-weight: 600; }
+    a.meta-tag:hover { border-color: var(--c1-blue); }
+    .masthead-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
     /* Continuous 1px Operational Ledger Strip */
     .ledger-strip {
@@ -419,7 +422,10 @@
           from small-sample noise, paired with Shewhart <em>p</em>-charts and <em>X&#772; / S</em> control charts.
         </p>
       </div>
-      <div class="meta-tag">DataCo Supply Chain &bull; 116 SKUs &bull; 92 Lanes &bull; 37 Months</div>
+      <div class="masthead-actions">
+        <a class="meta-tag" href="https://github.com/saul2703/sku-operations-bayes-spc">&larr; Back to Repo</a>
+        <div class="meta-tag">DataCo Supply Chain &bull; 116 SKUs &bull; 92 Lanes &bull; 37 Months</div>
+      </div>
     </header>
 
     <section class="ledger-strip" aria-label="Operational and Statistical Process Control Ledger">
